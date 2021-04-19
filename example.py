@@ -1,24 +1,25 @@
-from climates import Climate
+from climates import Climate, Command
 
 
 def hello(name="world", /):
     """Say hello."""
-    print(f"Hello, {name}!")
+    return f"Hello, {name}!"
 
 
-def example(a, b=1, /, c=2, *d: int, e=3, **f: int):
+def example(a, b=1, /, c=2, *d: int, e=3, h, **f: int):
     """Run example."""
-    print(repr((a, b, c, d, e, f)))
+    return repr((a, b, c, d, e, f))
 
 
 def bye(name=None):
     """Say bye."""
     if name:
-        print(f"Bye-bye, {name}.")
+        return f"Bye-bye, {name}."
     else:
-        print("Bye-bye.")
+        return "Bye-bye."
 
 
 cli = Climate("hello", description="Hello world app.")
-cli.add_commands(hello, bye, example)
+for func in (hello, example, bye):
+    cli.add(Command(func))
 cli.run()

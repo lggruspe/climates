@@ -1,115 +1,183 @@
 """Command-line interfaces made accessible to even simpletons."""
 
-import argparse
-from inspect import getfullargspec, signature
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
-
-from .parameters import add as add_parameter
-
-
-CommandHandler = Callable[..., Any]
+from argparse import ArgumentParser
+from dataclasses import dataclass
+from functools import wraps
+from inspect import signature, Parameter
+from typing import Any, Callable, Dict, NoReturn, Optional, Sequence, Tuple
 
 
-def microclimate(subparsers: Any, name: str, func: CommandHandler) -> Any:
-    """Add and return subparser.
+Function = Callable[..., Any]
+Error = Callable[..., NoReturn]
 
-    Obtain command-line options from function signature.
+
+def parse_pair(pair: str,
+               converter: Function,
+               error: Error) -> Tuple[str, Any]:
+    """Parse key:value string.
+
+    Runs error function on failure (error function should abort the program).
+    Catches ValueError raised by converter.
     """
-    doc = func.__doc__
-    subparser = subparsers.add_parser(name, help=doc, description=doc)
-    for param in signature(func).parameters.values():
-        add_parameter(subparser, param)
-    return subparser
-
-
-def parse_key_value_pair(pair: str, caster: Callable[..., Any]
-                         ) -> Optional[Tuple[str, Any]]:
-    """Parse strings of the form 'key:val'.
-
-    Raise ValueError on failure.
-    Try to convert val using caster (callable type annotation).
-    If that doesn't work, just return the original val.
-    """
-    key, val = pair.split(':', 1)
     try:
-        return key, caster(val)
-    except (TypeError, ValueError):
-        return key, val
+        key, val = pair.split(":", 1)
+    except ValueError:
+        error("key value pair should be separated by ':' as in 'key:value'")
+    try:
+        return key, converter(val)
+    except ValueError as exc:
+        error(exc)
 
 
-def invoke(func: CommandHandler,
-           namespace: Dict[str, Any],
-           subparser: Optional[argparse.ArgumentParser] = None) -> Any:
-    """Invoke function on args in namespace dictionary.
+def make_converter(func: Function) -> Function:
+    """Make converter (parser) out of function.
 
-    Use subparser to generate error messages in case of error in parsing
-    var keyword arguments.
+    Rethrows all exceptions as ValueError so ArgumentParser can handle them.
     """
-    args = []
-    kwargs = {}
-
-    spec = getfullargspec(func)
-    for arg in spec.args:
-        args.append(namespace.get(arg))
-    if spec.varargs:
-        args.extend(namespace.get(spec.varargs, []))
-    for arg in spec.kwonlyargs:
-        kwargs[arg] = namespace.get(arg)
-    for option in namespace.get(spec.varkw, []):
-        annotation = spec.annotations.get(spec.varkw)
+    @wraps(func)
+    def wrapper(*args, **kwargs):
         try:
-            key, val = parse_key_value_pair(option, annotation)
-            kwargs[key] = val
-        except ValueError:
-            if subparser is not None:
-                subparser.error(f"argument --{spec.varkw}: key and value "
-                                "should be separated by ':' as in "
-                                "'key:value'")
-    try:
-        return func(*args, **kwargs)
-    except TypeError as e:
-        subparser.error(e)
+            return func(*args, **kwargs)
+        except Exception as exc:
+            raise ValueError(f"could not parse into {func.__name__}") from exc
+    return wrapper
+
+
+@dataclass
+class Command:
+    """Represent CLI commands."""
+    function: Function
+    alias: Optional[str] = None
+    result: bool = True
+    parsers: Optional[Dict[str, Function]] = None
+    subparser: Optional[ArgumentParser] = None
+
+    @property
+    def name(self) -> str:
+        """Get command name as it appears in the command-line."""
+        if self.alias is not None:
+            return self.alias
+        return self.function.__name__
+
+    @property
+    def description(self) -> Optional[str]:
+        """Get command description from function docstring."""
+        return self.function.__doc__
+
+    def converter(self, param: Parameter) -> Function:
+        """Get converter for parameter."""
+        converter: Function = str
+        if param.annotation != param.empty:
+            converter = param.annotation
+        if self.parsers:
+            converter = self.parsers.get(param.name, converter)
+        return make_converter(converter)
+
+    def set_options(self, parser) -> None:
+        """Set parser options from command function signature."""
+        self.subparser = parser
+        sig = signature(self.function)
+        for name, param in sig.parameters.items():
+            # NOTE add_argument(help=...) should be taken from docstring params
+            converter = self.converter(param)
+            default = param.default if param.default != param.empty else None
+            if param.kind == param.POSITIONAL_ONLY:
+                if default is None:
+                    parser.add_argument(name, type=converter)
+                else:
+                    parser.add_argument(
+                        name,
+                        nargs="?",
+                        default=default,
+                        type=converter,
+                    )
+            elif param.kind == param.POSITIONAL_OR_KEYWORD:
+                parser.add_argument(
+                    f"--{name}",
+                    default=default,
+                    type=converter,
+                    required=param.default == param.empty,
+                    dest=name,
+                )
+            elif param.kind == param.VAR_POSITIONAL:
+                parser.add_argument(
+                    name,
+                    nargs="*",
+                    type=converter,
+                )
+            elif param.kind == param.KEYWORD_ONLY:
+                parser.add_argument(
+                    f"--{name}",
+                    default=default,
+                    type=converter,
+                    required=param.default == param.empty,
+                    dest=name,
+                )
+            else:
+                assert param.kind == param.VAR_KEYWORD
+                parser.add_argument(
+                    f"--{name}",
+                    default=[],
+                    nargs="*",
+                    type=str,  # --name key1:val1 key2:val2 ... (parsed later)
+                )
+
+    def invoke(self, args: Dict[str, Any]) -> Any:
+        """Invoke command on argparse.Namespace dictionary."""
+        assert self.subparser is not None
+
+        sig = signature(self.function)
+        argv = []
+        kwargs = {}
+        for name, param in sig.parameters.items():
+            value = args[name]
+            if param.kind == param.POSITIONAL_ONLY:
+                argv.append(value)
+            elif param.kind == param.POSITIONAL_OR_KEYWORD:
+                argv.append(value)
+            elif param.kind == param.VAR_POSITIONAL:
+                argv.extend(value)
+            elif param.kind == param.KEYWORD_ONLY:
+                kwargs[name] = value
+            else:
+                assert param.kind == param.VAR_KEYWORD
+                for pair in value:
+                    error = self.subparser.error
+                    key, val = parse_pair(pair, self.converter(param), error)
+                    kwargs[key] = val
+        result = self.function(*argv, **kwargs)
+        if self.result:
+            print(result)
+        return result
+
+
+SUBCOMMAND_DEST = "subcommand "
 
 
 class Climate:
-    """Climate CLI."""
+    """Climate CLI builder and dispatcher."""
     def __init__(self, prog: str, description: Optional[str] = None):
         self.prog = prog
         self.description = description
-        self.commands: Dict[str, CommandHandler] = {}
-        self.subparsers: Optional[Dict[str, argparse.ArgumentParser]] = None
+        self.commands: Dict[str, Command] = {}
 
-    def add_commands(self,
-                     *args: CommandHandler,
-                     **kwargs: CommandHandler) -> Any:
-        """Add commands."""
-        for arg in args:
-            self.commands[arg.__name__] = arg
-        for key, val in kwargs.items():
-            self.commands[key] = val
+    def add(self, command: Command) -> None:
+        """Add command."""
+        self.commands[command.name] = command
 
-    def to_argparse(self) -> argparse.ArgumentParser:
-        """Create ArgumentParser.
-
-        Also set self.subparsers.
-        """
-        parser = argparse.ArgumentParser(prog=self.prog,
-                                         description=self.description)
-
-        subparsers = parser.add_subparsers(title="subcommands",
-                                           dest="$command")
-        commands = {}
-        for key, val in self.commands.items():
-            commands[key] = microclimate(subparsers, key, val)
-        self.subparsers = commands
+    def build(self) -> ArgumentParser:
+        """Build ArgumentParser."""
+        parser = ArgumentParser(prog=self.prog, description=self.description)
+        subparsers = parser.add_subparsers(dest=SUBCOMMAND_DEST, required=True)
+        for name, command in self.commands.items():
+            subparser = subparsers.add_parser(name,
+                                              description=command.description)
+            command.set_options(subparser)
         return parser
 
-    def run(self, args: Optional[Sequence[str]] = None) -> Any:
-        """Run argument parser and command handler."""
-        parser = self.to_argparse()
-        _args = vars(parser.parse_args(args))
-        name = _args.get("$command", "")
-        command = self.commands.get(name)
-        if not command:
-            return parser.print_usage()
-        return invoke(command, _args, self.subparsers.get(name))
+    def run(self, args_: Optional[Sequence[str]] = None) -> Any:
+        """Run argument parser and dispatcher."""
+        args = vars(self.build().parse_args(args_))
+        command = self.commands[args[SUBCOMMAND_DEST]]
+        del args[SUBCOMMAND_DEST]
+        return command.invoke(args)

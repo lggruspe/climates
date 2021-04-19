@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from climates import Climate
+from climates import Climate, Command
 from subprocess import run
 import sys
 
@@ -26,17 +26,19 @@ def dist():
 
 def lint():
     """Run linters."""
-    sh("flake8 climates --max-complexity=10")
-    sh("pylint climates -d C0102,C0103,E1136")
+    sh("flake8 climates --max-complexity=8")
+    sh("pylint climates --fail-under=10 -d E1136")
+    sh("mypy -p climates")
 
 
 def test():
     """Run tests."""
-    sh("pytest --cov=climates --cov-report=term-missing --cov-fail-under=90 "
-       "--cov-branch")
+    sh("pytest --cov=climates --cov-report=term-missing --cov-fail-under=99 "
+       "--cov-branch -x")
 
 
 if __name__ == "__main__":
     cli = Climate("scripts.py", description="Dev scripts.")
-    cli.add_commands(init, dist, lint, test)
+    for func in (init, dist, lint, test):
+        cli.add(Command(func, result=None))
     cli.run()

@@ -1,178 +1,271 @@
 # type: ignore
 """Test climates."""
 from argparse import ArgumentParser
-from typing import Optional
 import pytest
-from climates import Climate, microclimate
+from climates import Climate, Command
 
 
-def test_microclimate(cmd_foo, cmd_bar, cmd_baz):
-    """microclimate should insert subcommand into subparser."""
-    parser = ArgumentParser()
-    subparsers = parser.add_subparsers()
-    microclimate(subparsers, "foo", cmd_foo)
-    microclimate(subparsers, "bar", cmd_bar)
-    microclimate(subparsers, "baz", cmd_baz)
-    assert subparsers.choices["foo"].description == "Foo."
-    assert subparsers.choices["bar"].description == "Bar."
-    assert subparsers.choices["baz"].description == "Baz."
+def test_command_name():
+    """Command name should be taken from function.__name__ or from alias."""
+    def foobar():
+        """Foobar."""
+
+    assert Command(foobar).name == "foobar"
+    assert Command(foobar, alias="foobaz").name == "foobaz"
 
 
-def test_climate():
+def test_command_description():
+    """Command description should be taken from function docstrings."""
+    def foobar():
+        pass
+
+    def foobaz():
+        """Foobaz."""
+
+    assert Command(foobar).description is None
+    assert "Foobaz." in Command(foobaz).description
+    foobar()
+
+
+def test_climate_constructor():
     """Climate constructor must set description and empty commands."""
     cli = Climate("test", description="Test CLI app")
+    assert cli.prog == "test"
     assert cli.description == "Test CLI app"
     assert not cli.commands
 
 
-def test_climate_add_commands(cli, cmd_foo, cmd_bar):
-    """Climate.add_commands should add function to commands.
-
-    It should use the function's name as key to Climate.commands.
-    """
-    cmd_baz = cmd_bar
-    cli.add_commands(cmd_foo, cmd_baz)
-    assert len(cli.commands) == 2
-    assert cli.commands["foo"] == cmd_foo
-    assert cli.commands["bar"] == cmd_bar
+def test_climate_build(cli):
+    """Climate.build should create an ArgumentParser object."""
+    assert isinstance(cli.build(), ArgumentParser)
 
 
-def test_climate_add_commands_with_kwargs(cli, cmd_foo, cmd_bar):
-    """Climate.add_commands should add functions in kwargs to commands.
-
-    But it should use the keys in kwargs instead of function.__name__.
-    """
-    cli.add_commands(cmd_foo, baz=cmd_bar)
-    assert len(cli.commands) == 2
-    assert cli.commands["foo"] == cmd_foo
-    assert cli.commands["baz"] == cmd_bar
-
-
-def test_climate_to_argparse(cli):
-    """Climates.to_argparse should create an ArgumentParser object."""
-    assert isinstance(cli.to_argparse(), ArgumentParser)
-
-
-def test_climate_to_argparse_description():
-    """Climates.to_argparse should get description from Climate.description."""
+def test_climate_build_description():
+    """Climate.build should get description from Climate.description."""
     cli = Climate("test", description="Test CLI app")
-    parser = cli.to_argparse()
+    parser = cli.build()
+    assert isinstance(parser, ArgumentParser)
     assert cli.description == parser.description
 
 
-def test_climate_to_argparse_with_commands(cli, cmd_foo, cmd_bar, cmd_baz):
-    """Climates.to_argparse should not crash if there are commands."""
-    cli.add_commands(cmd_foo, cmd_bar, cmd_baz)
-    cli.to_argparse()
+def test_climate_run_dispatch(cli):
+    """Climate.run should dispatch automatically."""
+    def fn_foo():
+        return "Foo."
+
+    def fn_bar():
+        return "Bar."
+
+    def fn_baz():
+        return "Baz."
+
+    cli.add(Command(fn_foo, alias="foo"))
+    cli.add(Command(fn_bar, alias="bar"))
+    cli.add(Command(fn_baz, alias="baz"))
+    assert cli.run(["foo"]) == "Foo."
+    assert cli.run(["bar"]) == "Bar."
+    assert cli.run(["baz"]) == "Baz."
 
 
-def test_climate_run(cli, cmd_foo, cmd_bar, cmd_baz):
-    """Climate.run should invoke command handler specified in options."""
-    cli.add_commands(cmd_foo, cmd_bar, cmd_baz)
-    res_foo = cli.run(["foo", "1"])
-    res_bar = cli.run(["bar", "1", "--b", "2", "3"])
-    res_baz = cli.run(["baz", "1", "--b", "2", "3", "--c", "c:4", "d:5",
-                       "e:6"])
-    assert res_foo == ("foo", "1")
-    assert res_bar == ("bar", "1", ("2", "3"))
-    assert res_baz == ("baz", "1", ("2", "3"), dict(c="4", d="5", e="6"))
+def test_climate_run_invalid_subcommand(cli, capsys):
+    """Subcommand should be required and checked."""
+    with pytest.raises(SystemExit):
+        cli.run([])
+    _, err = capsys.readouterr()
+    assert "required: subcommand" in err
+
+    with pytest.raises(SystemExit):
+        cli.run(["invalid"])
+    _, err = capsys.readouterr()
+    assert "invalid choice" in err
 
 
-def test_climate_run_with_positional_only_parameters(cli):
-    """Climate.run should add positional arguments to the subparser."""
-    def func(foo, bar: int, baz="hello", /):
-        """Test function."""
-        return foo, bar, baz
-    cli.add_commands(func)
-    foo, bar, baz = cli.run(["func", "foo", "1", "baz"])
-    assert foo == "foo"
-    assert bar == 1
-    assert baz == "baz"
+def test__positional_only_parameters_with_default(cli, capsys):
+    """Corresponding option should be positional and optional."""
+    def func(arg="default", /):
+        return arg
+
+    cli.add(Command(func))
+    assert cli.run(["func"]) == "default"
+    assert cli.run(["func", "foo"]) == "foo"
+
+    with pytest.raises(SystemExit):
+        cli.run(["func", "--arg", "bar"])
+    _, err = capsys.readouterr()
+    assert "unrecognized arguments: --arg" in err
 
 
-def test_climate_run_with_keyword_only_parameters(cli):
-    """Climate.run should add named arguments to the subparser. """
-    def func(*, foo, bar: int, baz="hello"):
-        """Test function."""
-        return foo, bar, baz
-    cli.add_commands(func)
-    command = "func --foo foo --bar 1 --baz baz".split()
-    foo, bar, baz = cli.run(command)
-    assert foo == "foo"
-    assert bar == 1
-    assert baz == "baz"
+def test__positional_only_parameters_without_default(cli, capsys):
+    """Corresponding option should be positional and required."""
+    def func(arg, /):
+        return arg
 
+    cli.add(Command(func))
+    assert cli.run(["func", "foo"]) == "foo"
 
-def test_climate_run_with_required_keyword_only_parameter(cli):
-    """Climate.run should abort if the argument isn't given."""
-    def func(*, _arg):
-        """Test function."""
-    cli.add_commands(func)
+    with pytest.raises(SystemExit):
+        cli.run(["func", "--arg", "bar"])
+    _, err = capsys.readouterr()
+    assert "unrecognized arguments: --arg" in err
+
     with pytest.raises(SystemExit):
         cli.run(["func"])
+    _, err = capsys.readouterr()
+    assert "required: arg" in err
 
 
-def test_climate_run_with_parameter_with_callable_annotation(cli):
-    """Climate.run should automatically use it to convert values."""
-    def func(arg: float):
-        """Test function."""
+def test__keyword_only_parameters_with_default(cli, capsys):
+    """Corresponding option should be an optional flag."""
+    def func(*, arg="default"):
         return arg
-    cli.add_commands(func)
-    result = cli.run(["func", "--arg", "1.5"])
-    assert result == 1.5
+
+    cli.add(Command(func))
+    assert cli.run(["func"]) == "default"
+    assert cli.run(["func", "--arg", "foo"]) == "foo"
+
+    with pytest.raises(SystemExit):
+        cli.run(["func", "foo"])
+    _, err = capsys.readouterr()
+    assert "unrecognized arguments: foo" in err
 
 
-def test_climate_run_with_var_positional_parameter(cli):
-    """Climate.run should try to convert values of the incorrect type.
+def test__keyword_only_parameters_without_default(cli, capsys):
+    """Corresponding option should be a required flag."""
+    def func(*, arg):
+        return arg
 
-    If this isn't possible, Climate.run should just keep the invalid values as
-    strings.
-    """
-    def func(*args: int):
-        """Test function."""
+    cli.add(Command(func))
+    assert cli.run(["func", "--arg", "foo"]) == "foo"
+
+    with pytest.raises(SystemExit):
+        cli.run(["func", "foo"])
+    _, err = capsys.readouterr()
+    assert "required: --arg" in err
+
+    with pytest.raises(SystemExit):
+        cli.run(["func"])
+    _, err = capsys.readouterr()
+    assert "required: --arg" in err
+
+
+def test__var_positional_parameters(cli, capsys):
+    """Corresponding option should be optional list."""
+    def func(*args):
         return args
-    cli.add_commands(func)
-    result1 = cli.run(["func", "--args", "a"])
-    result2 = cli.run(["func", "--args", "1", "2"])
-    assert result1 == ("a",)
-    assert result2 == (1, 2)
+
+    cli.add(Command(func))
+    assert cli.run(["func"]) == ()
+    assert cli.run(["func", "foo", "bar", "baz"]) == ("foo", "bar", "baz")
+
+    with pytest.raises(SystemExit):
+        cli.run(["func", "--args", "foo"])
+    _, err = capsys.readouterr()
+    assert "unrecognized arguments: --args" in err
 
 
-def test_climate_run_with_var_keyword_parameter(cli):
-    """Climate.run should abort the program if there's an invalid argument.
+def test__var_keyword_parameters(cli, capsys):
+    """Corresponding option should be an optional flag that takes in a list.
 
-    Otherwise, it should try to convert the values to the specified type.
+    Keys and values should be separated by ':' and pairs should be separated
+    by spaces.
     """
-    def func(**kwargs: int):
-        """Test function."""
+    def func(**kwargs):
         return kwargs
-    cli.add_commands(func)
+
+    cli.add(Command(func))
+
+    assert cli.run(["func"]) == {}
+    assert cli.run(["func", "--kwargs"]) == {}
+    assert cli.run(["func", "--kwargs", "a:1", "b:2"]) == {"a": "1", "b": "2"}
+
     with pytest.raises(SystemExit):
-        cli.run(["func", "--kwargs", "a1"])
-    result1 = cli.run(["func", "--kwargs", "a:a"])
-    result2 = cli.run(["func", "--kwargs", "a:1", "b:2"])
-    assert result1 == {"a": "a"}
-    assert result2 == {"a": 1, "b": 2}
+        cli.run(["func", "--kwargs", "invalid"])
+    _, err = capsys.readouterr()
+    assert "'key:value'" in err
 
 
-def test_climate_run_with_multiple_values_for_argument(cli):
-    """Climate.run should abort the program."""
-    def func(_arg="foo", **_kwargs):
-        """Test function."""
-    cli.add_commands(func)
+def test__annotated_parameters(cli):
+    """Options should be converted using annotation."""
+    def func(arg: float, *args: int, **kwargs: float):
+        return arg, args, kwargs
+
+    cli.add(Command(func))
+    arg, args, kwargs = cli.run([
+        "func",
+        "--arg", "1.5",
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+        "--kwargs", "a:1.1", "b:2.2",
+    ])
+    assert arg == 1.5
+    assert args == tuple(range(11))
+    assert kwargs == {"a": 1.1, "b": 2.2}
+
+
+def test__failed_option_parsing(cli, capsys):
+    """Program should abort if it can't parse an option."""
+    def func(arg: int, /):
+        return arg
+
+    cli.add(Command(func))
+    assert cli.run(["func", "42"]) == 42
+
     with pytest.raises(SystemExit):
-        cli.run(["func", "--_kwargs", "_arg:bar"])
+        cli.run(["func", "a"])
+    _, err = capsys.readouterr()
+    assert "invalid int value" in err
+
+    with pytest.raises(SystemExit):
+        cli.run(["func", "a"])
+    _, err = capsys.readouterr()
+    assert "invalid int value" in err
 
 
-def test_climate_run_with_param_with_non_casting_callable_annotation(cli):
-    """Climate.run should keep the value as a string."""
-    def func(a: Optional[str], *b: str, c: Optional[str] = None, **d: str):
-        """Test."""
-        return a, b, c, d
-    cli.add_commands(func)
-    command = "func --a a --b b --c c --d d:d".split()
-    a, b, c, d = cli.run(command)
-    assert a == "a"
-    assert b == ("b",)
-    assert c == "c"
-    assert d == {"d": "d"}
+def test__failed_keyword_parsing(cli, capsys):
+    """Program should abort if it can't parse a key-value pair."""
+    def func(**kwargs: int):
+        return kwargs
+
+    cli.add(Command(func))
+    assert cli.run(["func", "--kwargs", "x:42"]) == {"x": 42}
+
+    with pytest.raises(SystemExit):
+        cli.run(["func", "--kwargs", "invalid"])
+    _, err = capsys.readouterr()
+    assert "'key:value'" in err
+
+    with pytest.raises(SystemExit):
+        cli.run(["func", "--kwargs", "x:42.0"])
+    _, err = capsys.readouterr()
+    assert "could not parse into int" in err
+
+
+def test__command_with_custom_parser(cli):
+    """Options should be passed to the parser if there is one."""
+    def func(arg):
+        return arg
+
+    cli.add(Command(func, parsers={"arg": lambda s: s[::-1]}))
+    assert cli.run(["func", "--arg", "foo"]) == "oof"
+    assert cli.run(["func", "--arg", "bar"]) == "rab"
+    assert cli.run(["func", "--arg", "baz"]) == "zab"
+
+
+def test__command_with_result(cli, capsys):
+    """Print function result if Command.result is True.
+
+    Climate.run should still return the result regardless of the value of
+    Command.result.
+    """
+    def func(arg):
+        return arg
+
+    cli.add(Command(func, alias="foo"))
+    cli.add(Command(func, alias="bar", result=False))
+
+    assert cli.run(["foo", "--arg", "1"]) == "1"
+    out, _ = capsys.readouterr()
+    assert "1" in out
+
+    assert cli.run(["bar", "--arg", "1"]) == "1"
+    out, _ = capsys.readouterr()
+    assert not out
