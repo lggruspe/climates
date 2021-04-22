@@ -23,5 +23,6 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Environment :: Console",
     ],
+    install_requires=["infer_parser==0.0.1"],
     python_requires=">=3.8",
 )

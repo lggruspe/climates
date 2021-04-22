@@ -28,12 +28,12 @@ def lint():
     """Run linters."""
     sh("flake8 climates --max-complexity=8")
     sh("pylint climates --fail-under=10 -d E1136")
-    sh("mypy -p climates")
+    sh("mypy -p climates --strict")
 
 
 def test():
     """Run tests."""
-    sh("pytest --cov=climates --cov-report=term-missing --cov-fail-under=99 "
+    sh("pytest --cov=climates --cov-report=term-missing --cov-fail-under=90 "
        "--cov-branch -x")
 
 

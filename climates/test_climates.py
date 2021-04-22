@@ -214,11 +214,6 @@ def test__failed_option_parsing(cli, capsys):
     _, err = capsys.readouterr()
     assert "invalid int value" in err
 
-    with pytest.raises(SystemExit):
-        cli.run(["func", "a"])
-    _, err = capsys.readouterr()
-    assert "invalid int value" in err
-
 
 def test__failed_keyword_parsing(cli, capsys):
     """Program should abort if it can't parse a key-value pair."""

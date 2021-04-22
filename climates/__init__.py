@@ -6,6 +6,8 @@ from functools import wraps
 from inspect import signature, Parameter
 from typing import Any, Callable, Dict, NoReturn, Optional, Sequence, Tuple
 
+from infer_parser import CantParse, infer
+
 
 Function = Callable[..., Any]
 Error = Callable[..., NoReturn]
@@ -35,11 +37,15 @@ def make_converter(func: Function) -> Function:
     Rethrows all exceptions as ValueError so ArgumentParser can handle them.
     """
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        error = ValueError(f"could not parse into {func.__name__}")
         try:
-            return func(*args, **kwargs)
+            result = func(*args, **kwargs)
+            if isinstance(result, CantParse):
+                raise error
+            return result
         except Exception as exc:
-            raise ValueError(f"could not parse into {func.__name__}") from exc
+            raise error from exc
     return wrapper
 
 
@@ -68,12 +74,12 @@ class Command:
         """Get converter for parameter."""
         converter: Function = str
         if param.annotation != param.empty:
-            converter = param.annotation
+            converter = infer(param.annotation)
         if self.parsers:
             converter = self.parsers.get(param.name, converter)
         return make_converter(converter)
 
-    def set_options(self, parser) -> None:
+    def set_options(self, parser: ArgumentParser) -> None:
         """Set parser options from command function signature."""
         self.subparser = parser
         sig = signature(self.function)
