@@ -11,7 +11,7 @@ from infer_parser import CantParse, infer
 
 Function = Callable[..., Any]
 Error = Callable[..., NoReturn]
-Arg = tuple[tuple[Any, ...], dict[str, Any]]  # type: ignore
+Arg = Tuple[Tuple[Any, ...], Dict[str, Any]]
 
 
 def arg(*args: Any, **kwargs: Any) -> Arg:
@@ -55,6 +55,21 @@ def make_converter(func: Function) -> Function:
     return wrapper
 
 
+def make_argument(param: Parameter, converter: Any) -> Arg:
+    """Make ArgumentParser argument."""
+    args = (f"--{param.name}",)
+    if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+        # --name key1:val1 key2:val2 for VAR_KEYWORD
+        return args, dict(default=[], nargs="*", type=converter)
+    default = param.default if param.default != param.empty else None
+    return args, dict(
+        default=default,
+        type=converter,
+        required=param.default == param.empty,
+        dest=param.name,
+    )
+
+
 @dataclass
 class Command:
     """Represent CLI commands."""
@@ -91,29 +106,13 @@ class Command:
         """Set parser options from command function signature."""
         self.subparser = parser
         sig = signature(self.function)
-        for name, param in sig.parameters.items():
+        for param in sig.parameters.values():
             # NOTE add_argument(help=...) should be taken from docstring params
             converter = self.converter(param)
             if param.kind == param.VAR_KEYWORD:
                 converter = str
-            default = param.default if param.default != param.empty else None
-            if param.kind in (param.POSITIONAL_OR_KEYWORD,
-                              param.KEYWORD_ONLY,
-                              param.POSITIONAL_ONLY):
-                parser.add_argument(
-                    f"--{name}",
-                    default=default,
-                    type=converter,
-                    required=param.default == param.empty,
-                    dest=name,
-                )
-            else:
-                parser.add_argument(
-                    f"--{name}",
-                    default=[],
-                    nargs="*",
-                    type=converter,  # --name key1:val1 key2:val2 for kwargs
-                )
+            args, kwargs = make_argument(param, converter)
+            parser.add_argument(*args, **kwargs)
 
     def invoke(self, args: Dict[str, Any]) -> Any:
         """Invoke command on argparse.Namespace dictionary."""
