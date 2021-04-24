@@ -237,3 +237,21 @@ def test__command_with_result(cli, capsys):
     assert cli.run(["bar", "--arg_", "1"]) == "1"
     out, _ = capsys.readouterr()
     assert not out
+
+
+def test__command_with_custom_args(cli, capsys):
+    """Use custom args when specified."""
+    def func(pos, short):
+        return pos, short
+
+    cli.add(Command(func, args=dict(
+        pos=arg("pos"),
+        short=arg("-s"),
+    )))
+
+    assert cli.run(["func", "foo", "-s", "bar"]) == ("foo", "bar")
+
+    with pytest.raises(SystemExit):
+        cli.run(["func"])
+    _, err = capsys.readouterr()
+    assert "the following arguments are required: pos, -s" in err

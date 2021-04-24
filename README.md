@@ -6,7 +6,7 @@ Climux
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/climux)](https://pypi.org/project/climux/)
 [![GitHub](https://img.shields.io/github/license/lggruspe/climux)](./LICENSE)
 
-Command-line interfaces made accessible to even simpletons.
+Library for writing command-line interfaces
 
 Installation
 ------------

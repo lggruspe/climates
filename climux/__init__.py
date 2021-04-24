@@ -1,4 +1,4 @@
-"""Command-line interfaces made accessible to even simpletons."""
+"""Library for writing command-line interfaces."""
 
 from argparse import ArgumentParser
 from dataclasses import dataclass
@@ -70,6 +70,20 @@ def make_argument(param: Parameter, converter: Any) -> Arg:
     )
 
 
+def update_argument(old: Arg, new: Arg) -> Arg:
+    """Update argument.
+
+    Also removes parameters that don't make sense for positional arguments.
+    """
+    _, old_kwargs = old
+    new_args, new_kwargs = new
+    old_kwargs.update(new_kwargs)
+    if len(new_args) == 1 and not new_args[0].startswith("-"):
+        old_kwargs.pop("dest", None)
+        old_kwargs.pop("required", None)
+    return (new_args, old_kwargs)
+
+
 @dataclass
 class Command:
     """Represent CLI commands."""
@@ -77,7 +91,7 @@ class Command:
     alias: Optional[str] = None
     result: bool = True
     parsers: Optional[Dict[str, Function]] = None
-    args: Optional[Arg] = None
+    args: Optional[Dict[str, Arg]] = None
 
     subparser: Optional[ArgumentParser] = None
 
@@ -112,6 +126,9 @@ class Command:
             if param.kind == param.VAR_KEYWORD:
                 converter = str
             args, kwargs = make_argument(param, converter)
+            if self.args and param.name in self.args:
+                args, kwargs = update_argument((args, kwargs),
+                                               self.args[param.name])
             parser.add_argument(*args, **kwargs)
 
     def invoke(self, args: Dict[str, Any]) -> Any:

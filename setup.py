@@ -5,10 +5,10 @@ with open("README.md") as fp:
 
 setuptools.setup(
     name="climux",
-    version="0.0.4",
+    version="0.0.5",
     author="Levi Gruspe",
     author_email="mail.levig@gmail.com",
-    description="Command-line interfaces made accessible to even simpletons",
+    description="Library for writing command-line interfaces",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/lggruspe/climux",
@@ -23,6 +23,6 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Environment :: Console",
     ],
-    install_requires=["infer_parser==0.0.1"],
+    install_requires=["infer_parser==0.0.2"],
     python_requires=">=3.8",
 )
