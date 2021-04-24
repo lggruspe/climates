@@ -1,10 +1,10 @@
-Climates
-========
+Climux
+======
 
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/lggruspe/climates/Python%20package)
-[![PyPI](https://img.shields.io/pypi/v/climates)](https://pypi.org/project/climates/)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/climates)](https://pypi.org/project/climates/)
-[![GitHub](https://img.shields.io/github/license/lggruspe/climates)](./LICENSE)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/lggruspe/climux/Python%20package)
+[![PyPI](https://img.shields.io/pypi/v/climux)](https://pypi.org/project/climux/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/climux)](https://pypi.org/project/climux/)
+[![GitHub](https://img.shields.io/github/license/lggruspe/climux)](./LICENSE)
 
 Command-line interfaces made accessible to even simpletons.
 
@@ -12,20 +12,20 @@ Installation
 ------------
 
 ```bash
-pip install climates
+pip install climux
 ```
 
 Usage
 -----
 
 ```python
-from climates import Climate, Command
+from climux import Cli, Command
 
 def hello(name="stranger", /):
     """Say hello."""
     return f"Hello, {name}!"
 
-cli = Climate("hello", description="Hello world app.")
+cli = Cli("hello", description="Hello world app.")
 cli.add(Command(hello))
 cli.run()
 ```

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from climates import Climate, Command
+from climux import Cli, Command
 from subprocess import run
 import sys
 
@@ -12,12 +12,6 @@ def sh(cmd):
         sys.exit(proc.returncode)
 
 
-def init():
-    """Initialize repository."""
-    sh("pip install --upgrade pip wheel")
-    sh("pip install -r requirements.txt")
-
-
 def dist():
     """Make release."""
     sh("python setup.py sdist bdist_wheel")
@@ -26,19 +20,19 @@ def dist():
 
 def lint():
     """Run linters."""
-    sh("flake8 climates --max-complexity=8")
-    sh("pylint climates --fail-under=10 -d E1136")
-    sh("mypy -p climates --strict")
+    sh("flake8 climux --max-complexity=8")
+    sh("pylint climux --fail-under=10 -d E1136")
+    sh("mypy -p climux --strict")
 
 
 def test():
     """Run tests."""
-    sh("pytest --cov=climates --cov-report=term-missing --cov-fail-under=90 "
+    sh("pytest --cov=climux --cov-report=term-missing --cov-fail-under=90 "
        "--cov-branch -x")
 
 
 if __name__ == "__main__":
-    cli = Climate("scripts.py", description="Dev scripts.")
-    for func in (init, dist, lint, test):
+    cli = Cli("scripts.py", description="Dev scripts.")
+    for func in (dist, lint, test):
         cli.add(Command(func, result=None))
     cli.run()

@@ -1,4 +1,4 @@
-from climates import Climate, Command
+from climux import Cli, Command
 
 
 def hello(name="world", /):
@@ -19,7 +19,7 @@ def bye(name=None):
         return "Bye-bye."
 
 
-cli = Climate("hello", description="Hello world app.")
+cli = Cli("hello", description="Hello world app.")
 for func in (hello, example, bye):
     cli.add(Command(func))
 cli.run()

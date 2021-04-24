@@ -1,8 +1,8 @@
 # type: ignore
-"""Test climates."""
+"""Test climux."""
 from argparse import ArgumentParser
 import pytest
-from climates import Climate, Command
+from climux import Cli, Command
 
 
 def test_command_name():
@@ -27,29 +27,29 @@ def test_command_description():
     foobar()
 
 
-def test_climate_constructor():
-    """Climate constructor must set description and empty commands."""
-    cli = Climate("test", description="Test CLI app")
+def test_cli_constructor():
+    """Cli constructor must set description and empty commands."""
+    cli = Cli("test", description="Test CLI app")
     assert cli.prog == "test"
     assert cli.description == "Test CLI app"
     assert not cli.commands
 
 
-def test_climate_build(cli):
-    """Climate.build should create an ArgumentParser object."""
+def test_cli_build(cli):
+    """Cli.build should create an ArgumentParser object."""
     assert isinstance(cli.build(), ArgumentParser)
 
 
-def test_climate_build_description():
-    """Climate.build should get description from Climate.description."""
-    cli = Climate("test", description="Test CLI app")
+def test_cli_build_description():
+    """Cli.build should get description from Cli.description."""
+    cli = Cli("test", description="Test CLI app")
     parser = cli.build()
     assert isinstance(parser, ArgumentParser)
     assert cli.description == parser.description
 
 
-def test_climate_run_dispatch(cli):
-    """Climate.run should dispatch automatically."""
+def test_cli_run_dispatch(cli):
+    """Cli.run should dispatch automatically."""
     def fn_foo():
         return "Foo."
 
@@ -67,7 +67,7 @@ def test_climate_run_dispatch(cli):
     assert cli.run(["baz"]) == "Baz."
 
 
-def test_climate_run_invalid_subcommand(cli, capsys):
+def test_cli_run_invalid_subcommand(cli, capsys):
     """Subcommand should be required and checked."""
     with pytest.raises(SystemExit):
         cli.run([])
@@ -248,7 +248,7 @@ def test__command_with_custom_parser(cli):
 def test__command_with_result(cli, capsys):
     """Print function result if Command.result is True.
 
-    Climate.run should still return the result regardless of the value of
+    Cli.run should still return the result regardless of the value of
     Command.result.
     """
     def func(arg):

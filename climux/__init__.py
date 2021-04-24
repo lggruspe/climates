@@ -160,8 +160,8 @@ class Command:
 SUBCOMMAND_DEST = "subcommand "
 
 
-class Climate:
-    """Climate CLI builder and dispatcher."""
+class Cli:
+    """CLI builder and dispatcher."""
     def __init__(self, prog: str, description: Optional[str] = None):
         self.prog = prog
         self.description = description
