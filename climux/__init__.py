@@ -11,6 +11,12 @@ from infer_parser import CantParse, infer
 
 Function = Callable[..., Any]
 Error = Callable[..., NoReturn]
+Arg = tuple[tuple[Any, ...], dict[str, Any]]  # type: ignore
+
+
+def arg(*args: Any, **kwargs: Any) -> Arg:
+    """Return arguments."""
+    return args, kwargs
 
 
 def parse_pair(pair: str,
@@ -56,6 +62,8 @@ class Command:
     alias: Optional[str] = None
     result: bool = True
     parsers: Optional[Dict[str, Function]] = None
+    args: Optional[Arg] = None
+
     subparser: Optional[ArgumentParser] = None
 
     @property

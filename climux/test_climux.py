@@ -2,7 +2,7 @@
 """Test climux."""
 from argparse import ArgumentParser
 import pytest
-from climux import Cli, Command
+from climux import Cli, Command, arg
 
 
 def test_command_name():
@@ -80,6 +80,14 @@ def test_cli_run_invalid_subcommand(cli, capsys):
     assert "invalid choice" in err
 
 
+def test_arg() -> None:
+    """arg should just return inputs (args and kwargs)."""
+    assert arg() == ((), {})
+    assert arg(1, 2) == ((1, 2), {})
+    assert arg(foo="foo", bar="bar") == ((), {"foo": "foo", "bar": "bar"})
+    assert arg(1, foo="foo") == ((1,), {"foo": "foo"})
+
+
 def test__parameter_with_default(cli, capsys):
     """Parameter should turn into CLI --option."""
     def func(oof="oof", /, rab="rab", *, zab="zab"):
@@ -151,31 +159,31 @@ def test__var_keyword_parameters(cli, capsys):
 
 def test__annotated_parameters(cli):
     """Options should be converted using annotation."""
-    def func(arg: float, *args: int, **kwargs: float):
-        return arg, args, kwargs
+    def func(arg_: float, *args: int, **kwargs: float):
+        return arg_, args, kwargs
 
     cli.add(Command(func))
-    arg, args, kwargs = cli.run([
+    arg_, args, kwargs = cli.run([
         "func",
-        "--arg", "1.5",
+        "--arg_", "1.5",
         "--args", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
         "--kwargs", "a:1.1", "b:2.2",
     ])
-    assert arg == 1.5
+    assert arg_ == 1.5
     assert args == tuple(range(11))
     assert kwargs == {"a": 1.1, "b": 2.2}
 
 
 def test__failed_option_parsing(cli, capsys):
     """Program should abort if it can't parse an option."""
-    def func(arg: int, /):
-        return arg
+    def func(arg_: int):
+        return arg_
 
     cli.add(Command(func))
-    assert cli.run(["func", "--arg", "42"]) == 42
+    assert cli.run(["func", "--arg_", "42"]) == 42
 
     with pytest.raises(SystemExit):
-        cli.run(["func", "--arg", "a"])
+        cli.run(["func", "--arg_", "a"])
     _, err = capsys.readouterr()
     assert "invalid int value" in err
 
@@ -201,13 +209,13 @@ def test__failed_keyword_parsing(cli, capsys):
 
 def test__command_with_custom_parser(cli):
     """Options should be passed to the parser if there is one."""
-    def func(arg):
-        return arg
+    def func(arg_):
+        return arg_
 
-    cli.add(Command(func, parsers={"arg": lambda s: s[::-1]}))
-    assert cli.run(["func", "--arg", "foo"]) == "oof"
-    assert cli.run(["func", "--arg", "bar"]) == "rab"
-    assert cli.run(["func", "--arg", "baz"]) == "zab"
+    cli.add(Command(func, parsers={"arg_": lambda s: s[::-1]}))
+    assert cli.run(["func", "--arg_", "foo"]) == "oof"
+    assert cli.run(["func", "--arg_", "bar"]) == "rab"
+    assert cli.run(["func", "--arg_", "baz"]) == "zab"
 
 
 def test__command_with_result(cli, capsys):
@@ -216,16 +224,16 @@ def test__command_with_result(cli, capsys):
     Cli.run should still return the result regardless of the value of
     Command.result.
     """
-    def func(arg):
-        return arg
+    def func(arg_):
+        return arg_
 
     cli.add(Command(func, alias="foo"))
     cli.add(Command(func, alias="bar", result=False))
 
-    assert cli.run(["foo", "--arg", "1"]) == "1"
+    assert cli.run(["foo", "--arg_", "1"]) == "1"
     out, _ = capsys.readouterr()
     assert "1" in out
 
-    assert cli.run(["bar", "--arg", "1"]) == "1"
+    assert cli.run(["bar", "--arg_", "1"]) == "1"
     out, _ = capsys.readouterr()
     assert not out

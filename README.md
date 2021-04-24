@@ -21,7 +21,7 @@ Usage
 ```python
 from climux import Cli, Command
 
-def hello(name="stranger", /):
+def hello(name="stranger"):
     """Say hello."""
     return f"Hello, {name}!"
 

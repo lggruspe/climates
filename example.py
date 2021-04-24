@@ -1,7 +1,7 @@
 from climux import Cli, Command
 
 
-def hello(name="world", /):
+def hello(name="world"):
     """Say hello."""
     return f"Hello, {name}!"
 
