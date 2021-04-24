@@ -80,72 +80,37 @@ def test_cli_run_invalid_subcommand(cli, capsys):
     assert "invalid choice" in err
 
 
-def test__positional_only_parameters_with_default(cli, capsys):
-    """Corresponding option should be positional and optional."""
-    def func(arg="default", /):
-        return arg
+def test__parameter_with_default(cli, capsys):
+    """Parameter should turn into CLI --option."""
+    def func(oof="oof", /, rab="rab", *, zab="zab"):
+        return dict(oof=oof, rab=rab, zab=zab)
 
     cli.add(Command(func))
-    assert cli.run(["func"]) == "default"
-    assert cli.run(["func", "foo"]) == "foo"
+    assert cli.run(["func"]) == dict(oof="oof", rab="rab", zab="zab")
+    assert cli.run(["func", "--oof", "1", "--rab", "2", "--zab", "3"]) == dict(
+        oof="1", rab="2", zab="3"
+    )
 
     with pytest.raises(SystemExit):
-        cli.run(["func", "--arg", "bar"])
+        cli.run(["func", "oof"])
     _, err = capsys.readouterr()
-    assert "unrecognized arguments: --arg" in err
+    assert "unrecognized arguments: oof" in err
 
 
-def test__positional_only_parameters_without_default(cli, capsys):
-    """Corresponding option should be positional and required."""
-    def func(arg, /):
-        return arg
+def test__parameter_without_default(cli, capsys):
+    """Parameter should turn into required CLI --option."""
+    def func(oof, /, rab, *, zab):
+        return dict(oof=oof, rab=rab, zab=zab)
 
     cli.add(Command(func))
-    assert cli.run(["func", "foo"]) == "foo"
-
-    with pytest.raises(SystemExit):
-        cli.run(["func", "--arg", "bar"])
-    _, err = capsys.readouterr()
-    assert "unrecognized arguments: --arg" in err
+    assert cli.run(["func", "--oof", "1", "--rab", "2", "--zab", "3"]) == dict(
+        oof="1", rab="2", zab="3"
+    )
 
     with pytest.raises(SystemExit):
         cli.run(["func"])
     _, err = capsys.readouterr()
-    assert "required: arg" in err
-
-
-def test__keyword_only_parameters_with_default(cli, capsys):
-    """Corresponding option should be an optional flag."""
-    def func(*, arg="default"):
-        return arg
-
-    cli.add(Command(func))
-    assert cli.run(["func"]) == "default"
-    assert cli.run(["func", "--arg", "foo"]) == "foo"
-
-    with pytest.raises(SystemExit):
-        cli.run(["func", "foo"])
-    _, err = capsys.readouterr()
-    assert "unrecognized arguments: foo" in err
-
-
-def test__keyword_only_parameters_without_default(cli, capsys):
-    """Corresponding option should be a required flag."""
-    def func(*, arg):
-        return arg
-
-    cli.add(Command(func))
-    assert cli.run(["func", "--arg", "foo"]) == "foo"
-
-    with pytest.raises(SystemExit):
-        cli.run(["func", "foo"])
-    _, err = capsys.readouterr()
-    assert "required: --arg" in err
-
-    with pytest.raises(SystemExit):
-        cli.run(["func"])
-    _, err = capsys.readouterr()
-    assert "required: --arg" in err
+    assert "the following arguments are required: --oof, --rab, --zab" in err
 
 
 def test__var_positional_parameters(cli, capsys):
@@ -155,12 +120,12 @@ def test__var_positional_parameters(cli, capsys):
 
     cli.add(Command(func))
     assert cli.run(["func"]) == ()
-    assert cli.run(["func", "foo", "bar", "baz"]) == ("foo", "bar", "baz")
+    assert cli.run("func --args foo bar baz".split()) == ("foo", "bar", "baz")
 
     with pytest.raises(SystemExit):
-        cli.run(["func", "--args", "foo"])
+        cli.run(["func", "foo"])
     _, err = capsys.readouterr()
-    assert "unrecognized arguments: --args" in err
+    assert "unrecognized arguments: foo" in err
 
 
 def test__var_keyword_parameters(cli, capsys):
@@ -193,7 +158,7 @@ def test__annotated_parameters(cli):
     arg, args, kwargs = cli.run([
         "func",
         "--arg", "1.5",
-        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+        "--args", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
         "--kwargs", "a:1.1", "b:2.2",
     ])
     assert arg == 1.5
@@ -207,10 +172,10 @@ def test__failed_option_parsing(cli, capsys):
         return arg
 
     cli.add(Command(func))
-    assert cli.run(["func", "42"]) == 42
+    assert cli.run(["func", "--arg", "42"]) == 42
 
     with pytest.raises(SystemExit):
-        cli.run(["func", "a"])
+        cli.run(["func", "--arg", "a"])
     _, err = capsys.readouterr()
     assert "invalid int value" in err
 

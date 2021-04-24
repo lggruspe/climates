@@ -86,32 +86,12 @@ class Command:
         for name, param in sig.parameters.items():
             # NOTE add_argument(help=...) should be taken from docstring params
             converter = self.converter(param)
+            if param.kind == param.VAR_KEYWORD:
+                converter = str
             default = param.default if param.default != param.empty else None
-            if param.kind == param.POSITIONAL_ONLY:
-                if default is None:
-                    parser.add_argument(name, type=converter)
-                else:
-                    parser.add_argument(
-                        name,
-                        nargs="?",
-                        default=default,
-                        type=converter,
-                    )
-            elif param.kind == param.POSITIONAL_OR_KEYWORD:
-                parser.add_argument(
-                    f"--{name}",
-                    default=default,
-                    type=converter,
-                    required=param.default == param.empty,
-                    dest=name,
-                )
-            elif param.kind == param.VAR_POSITIONAL:
-                parser.add_argument(
-                    name,
-                    nargs="*",
-                    type=converter,
-                )
-            elif param.kind == param.KEYWORD_ONLY:
+            if param.kind in (param.POSITIONAL_OR_KEYWORD,
+                              param.KEYWORD_ONLY,
+                              param.POSITIONAL_ONLY):
                 parser.add_argument(
                     f"--{name}",
                     default=default,
@@ -120,12 +100,11 @@ class Command:
                     dest=name,
                 )
             else:
-                assert param.kind == param.VAR_KEYWORD
                 parser.add_argument(
                     f"--{name}",
                     default=[],
                     nargs="*",
-                    type=str,  # --name key1:val1 key2:val2 ... (parsed later)
+                    type=converter,  # --name key1:val1 key2:val2 for kwargs
                 )
 
     def invoke(self, args: Dict[str, Any]) -> Any:
