@@ -4,12 +4,14 @@ from argparse import ArgumentParser
 from dataclasses import dataclass
 from inspect import signature, Parameter
 from typing import (
-    Any, Callable, Dict, Mapping, NoReturn, Optional, Sequence, Tuple
+    Any, Callable, Dict, Literal, Mapping, NoReturn, Optional, Sequence, Tuple,
+    Union
 )
 
 from infer_parser import infer_length
 
 from .convert import CantConvert, convert
+from .utils import collect_annotation
 
 
 Function = Callable[..., Any]
@@ -22,16 +24,26 @@ def arg(*args: Any, **kwargs: Any) -> Arg:
     return args, kwargs
 
 
+def infer_nargs(param: Parameter) -> Union[int, Literal["*"]]:
+    """Infer nargs."""
+    if param.annotation == param.empty:
+        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+            return "*"
+        return 1
+    length = infer_length(collect_annotation(param))
+    return length if isinstance(length, int) else "*"
+
+
 def make_argument(param: Parameter) -> Arg:
     """Make ArgumentParser argument."""
-    args = (f"--{param.name}",)
-    if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
-        return args, dict(default=[], nargs="*")
-
-    nargs = infer_length(param.annotation)
-    return args, dict(
+    variadic = param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
+    nargs = infer_nargs(param)
+    default: Optional[Sequence[Any]] = [] if variadic else None
+    required = False if variadic else param.default == param.empty
+    return (f"--{param.name}",), dict(
+        default=default,
         nargs=nargs,
-        required=param.default == param.empty,
+        required=required,
         dest=param.name,
     )
 

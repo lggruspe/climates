@@ -9,6 +9,8 @@ from typing import (
 
 from infer_parser import CantInfer, CantParse, infer
 
+from .utils import collect_annotation
+
 
 Function = Callable[..., Any]
 FunctionArgs = Tuple[Tuple[Any, ...], Dict[str, Any]]
@@ -40,11 +42,7 @@ def get_type_name(param: Parameter) -> str:
     Also fixes type names of *args and **kwargs.
     """
     assert param.annotation != param.empty
-    hint: Any = param.annotation
-    if param.kind == param.VAR_POSITIONAL:
-        hint = Tuple[hint, ...]
-    if param.kind == param.VAR_KEYWORD:
-        hint = Dict[str, hint]
+    hint = collect_annotation(param)
     return str(getattr(hint, "__name__", hint))
 
 
