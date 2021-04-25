@@ -1,8 +1,11 @@
 """Convert argparse parsed args to function args."""
 
+from functools import wraps
 from inspect import Parameter, signature
 from shlex import join
-from typing import Any, Callable, Dict, Sequence, Tuple, Union
+from typing import (
+    Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
+)
 
 from infer_parser import CantInfer, CantParse, infer
 
@@ -19,6 +22,7 @@ def get_parser(param: Parameter) -> Union[Function, CantInfer]:
     """Wrap infer to work with inspect.Parameters.
 
     Converts *args into a tuple and **kwargs into a dict.
+    Uses str for unannotated parameters.
     """
     annotation: Any = str
     if param.annotation != param.empty:
@@ -30,11 +34,43 @@ def get_parser(param: Parameter) -> Union[Function, CantInfer]:
     return infer(annotation)
 
 
-def convert(func: Function, inputs: Dict[str, Sequence[str]]
+def get_type_name(param: Parameter) -> str:
+    """Get type name.
+
+    Also fixes type names of *args and **kwargs.
+    """
+    assert param.annotation != param.empty
+    hint: Any = param.annotation
+    if param.kind == param.VAR_POSITIONAL:
+        hint = Tuple[hint, ...]
+    if param.kind == param.VAR_KEYWORD:
+        hint = Dict[str, hint]
+    return str(getattr(hint, "__name__", hint))
+
+
+def wrap_custom_parser(parser: Function) -> Function:
+    """Wrap custom parser so that it returns CantParse on error."""
+    @wraps(parser)
+    def wrapper(string: str) -> Any:
+        try:
+            return parser(string)
+        except Exception as exc:  # pylint: disable=broad-except
+            return CantParse(exc)
+    return wrapper
+
+
+def convert(func: Function,
+            inputs: Mapping[str, Optional[Sequence[str]]],
+            custom_parsers: Optional[Dict[str, Function]] = None,
             ) -> Union[FunctionArgs, CantConvert]:
     """Construct args and kwargs for function from argparse inputs.
 
     Assumes all function parameters are in inputs (raises KeyError).
+    If inputs[name] is None, apply default value.
+    Raise error if there's no default.
+
+    If a custom parser exists for a parameter, it is used instead of the
+    inferred parser.
     """
     args = []
     kwargs = {}
@@ -42,13 +78,29 @@ def convert(func: Function, inputs: Dict[str, Sequence[str]]
 
     for name, param in sig.parameters.items():
         parse = get_parser(param)
-        if isinstance(parse, CantInfer):
-            return CantConvert(f"unsupported type: {param.annotation}")
+        if custom_parsers and name in custom_parsers:
+            parse = wrap_custom_parser(custom_parsers[name])
 
-        string = join(inputs[name])
-        value = parse(string)
+        if isinstance(parse, CantInfer):
+            assert param.annotation != param.empty
+            return CantConvert(f"unsupported type: {get_type_name(param)}")
+
+        input_ = inputs[name]
+        if input_ is None:
+            if param.default == param.empty:
+                return CantConvert(f"missing parameter: {name}")
+            value = param.default
+        else:
+            string = join(input_)
+            value = parse(string)
         if isinstance(value, CantParse):
-            return CantConvert(f"'{string}' is an invalid value for {name}")
+            message = "argument {}: invalid value: '{}'".format(name, string)
+
+            # unannotated params don't cause parse errors
+            assert param.annotation != param.empty
+            type_name = get_type_name(param)
+            message += f" (expected {type_name})"
+            return CantConvert(message)
 
         if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD):
             args.append(value)

@@ -81,3 +81,79 @@ def test_convert_invalid_value() -> None:
     assert "invalid value" in result.args[0]
     assert "arg" in result.args[0]
     assert "5.0" in result.args[0]
+    assert "expected int" in result.args[0]
+
+
+def test_convert_invalid_args() -> None:
+    """convert should print proper error message for invalid *args."""
+    def func(*args: int) -> None:  # pylint: disable=unused-argument
+        """Does nothing."""
+
+    result = convert(func, {"args": ["5.0"]})
+    assert isinstance(result, CantConvert)
+    assert "invalid value" in result.args[0]
+    assert "args" in result.args[0]
+    assert "5.0" in result.args[0]
+    assert "expected typing.Tuple[int, ...]" in result.args[0]
+
+
+def test_convert_invalid_kwargs() -> None:
+    """convert should print proper error message for invalid **kwargs."""
+    def func(**kwargs: int) -> None:  # pylint: disable=unused-argument
+        """Does nothing."""
+
+    result = convert(func, {"kwargs": ["a", "5.0"]})
+    assert isinstance(result, CantConvert)
+    assert "invalid value" in result.args[0]
+    assert "kwargs" in result.args[0]
+    assert "a 5.0" in result.args[0]
+    assert "expected typing.Dict[str, int]" in result.args[0]
+
+
+def test_convert_none_with_default() -> None:
+    """convert should use default value if value in inputs is None."""
+    def func(arg: int = 9001) -> int:
+        return arg
+
+    result = convert(func, {"arg": None})
+    assert not isinstance(result, CantConvert)
+
+    args, kwargs = result
+    assert func(*args, **kwargs) == 9001
+
+
+def test_convert_none_with_missing_default() -> None:
+    """convert should raise error if input is None and there's no default."""
+    def func(arg: int) -> None:  # pylint: disable=unused-argument
+        """Does nothing."""
+
+    result = convert(func, {"arg": None})
+    assert isinstance(result, CantConvert)
+    assert "missing" in result.args[0]
+    assert "arg" in result.args[0]
+
+
+def test_convert_with_custom_parsers() -> None:
+    """convert should use custom parser instead of inferring one."""
+    def func(arg: str) -> None:  # pylint: disable=unused-argument
+        """Does nothing."""
+
+    result = convert(func, {"arg": ["foo"]}, custom_parsers=dict(
+        arg=lambda x: x[::-1]
+    ))
+    assert result == (("oof",), {})
+
+
+def test_convert_with_failing_custom_parsers() -> None:
+    """convert should fail if custom parser fails."""
+    def func(arg: int) -> None:  # pylint: disable=unused-argument
+        """Does nothing."""
+
+    result = convert(func, {"arg": ["foo"]}, custom_parsers=dict(
+        arg=int
+    ))
+    assert isinstance(result, CantConvert)
+    assert "invalid value" in result.args[0]
+    assert "arg" in result.args[0]
+    assert "foo" in result.args[0]
+    assert "expected int" in result.args[0]

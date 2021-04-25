@@ -95,7 +95,7 @@ def test__parameter_with_default(cli, capsys):
 
     cli.add(Command(func))
     assert cli.run(["func"]) == dict(oof="oof", rab="rab", zab="zab")
-    assert cli.run(["func", "--oof", "1", "--rab", "2", "--zab", "3"]) == dict(
+    assert cli.run(["func", "--oof", "1", "--rab", "2", "--zab", "3"]) == dict(  # noqa: E501
         oof="1", rab="2", zab="3"
     )
 
@@ -139,22 +139,33 @@ def test__var_positional_parameters(cli, capsys):
 def test__var_keyword_parameters(cli, capsys):
     """Corresponding option should be an optional flag that takes in a list.
 
-    Keys and values should be separated by ':' and pairs should be separated
-    by spaces.
+    The list should be an alternating sequence of keys and values separated by
+    spaces.
     """
-    def func(**kwargs):
+    def func(**kwargs: int):
         return kwargs
 
     cli.add(Command(func))
 
     assert cli.run(["func"]) == {}
     assert cli.run(["func", "--kwargs"]) == {}
-    assert cli.run(["func", "--kwargs", "a:1", "b:2"]) == {"a": "1", "b": "2"}
+    assert cli.run("func --kwargs a 1 b 2".split()) == {"a": 1, "b": 2}
 
     with pytest.raises(SystemExit):
         cli.run(["func", "--kwargs", "invalid"])
     _, err = capsys.readouterr()
-    assert "'key:value'" in err
+    assert "invalid value: 'invalid'" in err
+
+    with pytest.raises(SystemExit):
+        cli.run(["func", "--kwargs", "a", "1", "b"])
+    _, err = capsys.readouterr()
+    assert "invalid value: 'a 1 b'" in err
+
+    with pytest.raises(SystemExit):
+        cli.run(["func", "--kwargs", "x", "42.0"])
+    _, err = capsys.readouterr()
+    assert "invalid value: 'x 42.0'" in err
+    assert "expected typing.Dict[str, int]" in err
 
 
 def test__annotated_parameters(cli):
@@ -167,7 +178,7 @@ def test__annotated_parameters(cli):
         "func",
         "--arg_", "1.5",
         "--args", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
-        "--kwargs", "a:1.1", "b:2.2",
+        "--kwargs", "a", "1.1", "b", "2.2",
     ])
     assert arg_ == 1.5
     assert args == tuple(range(11))
@@ -185,26 +196,8 @@ def test__failed_option_parsing(cli, capsys):
     with pytest.raises(SystemExit):
         cli.run(["func", "--arg_", "a"])
     _, err = capsys.readouterr()
-    assert "invalid int value" in err
-
-
-def test__failed_keyword_parsing(cli, capsys):
-    """Program should abort if it can't parse a key-value pair."""
-    def func(**kwargs: int):
-        return kwargs
-
-    cli.add(Command(func))
-    assert cli.run(["func", "--kwargs", "x:42"]) == {"x": 42}
-
-    with pytest.raises(SystemExit):
-        cli.run(["func", "--kwargs", "invalid"])
-    _, err = capsys.readouterr()
-    assert "'key:value'" in err
-
-    with pytest.raises(SystemExit):
-        cli.run(["func", "--kwargs", "x:42.0"])
-    _, err = capsys.readouterr()
-    assert "could not parse into int" in err
+    assert "invalid value" in err
+    assert "expected int" in err
 
 
 def test__command_with_custom_parser(cli):

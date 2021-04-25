@@ -2,11 +2,14 @@
 
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from functools import wraps
 from inspect import signature, Parameter
-from typing import Any, Callable, Dict, NoReturn, Optional, Sequence, Tuple
+from typing import (
+    Any, Callable, Dict, Mapping, NoReturn, Optional, Sequence, Tuple
+)
 
-from infer_parser import CantParse, infer
+from infer_parser import infer_length
+
+from .convert import CantConvert, convert
 
 
 Function = Callable[..., Any]
@@ -19,52 +22,15 @@ def arg(*args: Any, **kwargs: Any) -> Arg:
     return args, kwargs
 
 
-def parse_pair(pair: str,
-               converter: Function,
-               error: Error) -> Tuple[str, Any]:
-    """Parse key:value string.
-
-    Runs error function on failure (error function should abort the program).
-    Catches ValueError raised by converter.
-    """
-    try:
-        key, val = pair.split(":", 1)
-    except ValueError:
-        error("key value pair should be separated by ':' as in 'key:value'")
-    try:
-        return key, converter(val)
-    except ValueError as exc:
-        error(exc)
-
-
-def make_converter(func: Function) -> Function:
-    """Make converter (parser) out of function.
-
-    Rethrows all exceptions as ValueError so ArgumentParser can handle them.
-    """
-    @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        error = ValueError(f"could not parse into {func.__name__}")
-        try:
-            result = func(*args, **kwargs)
-            if isinstance(result, CantParse):
-                raise error
-            return result
-        except Exception as exc:
-            raise error from exc
-    return wrapper
-
-
-def make_argument(param: Parameter, converter: Any) -> Arg:
+def make_argument(param: Parameter) -> Arg:
     """Make ArgumentParser argument."""
     args = (f"--{param.name}",)
     if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
-        # --name key1:val1 key2:val2 for VAR_KEYWORD
-        return args, dict(default=[], nargs="*", type=converter)
-    default = param.default if param.default != param.empty else None
+        return args, dict(default=[], nargs="*")
+
+    nargs = infer_length(param.annotation)
     return args, dict(
-        default=default,
-        type=converter,
+        nargs=nargs,
         required=param.default == param.empty,
         dest=param.name,
     )
@@ -107,54 +73,27 @@ class Command:
         """Get command description from function docstring."""
         return self.function.__doc__
 
-    def converter(self, param: Parameter) -> Function:
-        """Get converter for parameter."""
-        converter: Function = str
-        if param.annotation != param.empty:
-            converter = infer(param.annotation)
-        if self.parsers:
-            converter = self.parsers.get(param.name, converter)
-        return make_converter(converter)
-
     def set_options(self, parser: ArgumentParser) -> None:
         """Set parser options from command function signature."""
         self.subparser = parser
         sig = signature(self.function)
         for param in sig.parameters.values():
             # NOTE add_argument(help=...) should be taken from docstring params
-            converter = self.converter(param)
-            if param.kind == param.VAR_KEYWORD:
-                converter = str
-            args, kwargs = make_argument(param, converter)
+            args, kwargs = make_argument(param)
             if self.args and param.name in self.args:
                 args, kwargs = update_argument((args, kwargs),
                                                self.args[param.name])
             parser.add_argument(*args, **kwargs)
 
-    def invoke(self, args: Dict[str, Any]) -> Any:
+    def invoke(self, inputs: Mapping[str, Sequence[str]]) -> Any:
         """Invoke command on argparse.Namespace dictionary."""
         assert self.subparser is not None
 
-        sig = signature(self.function)
-        argv = []
-        kwargs = {}
-        for name, param in sig.parameters.items():
-            value = args[name]
-            if param.kind == param.POSITIONAL_ONLY:
-                argv.append(value)
-            elif param.kind == param.POSITIONAL_OR_KEYWORD:
-                argv.append(value)
-            elif param.kind == param.VAR_POSITIONAL:
-                argv.extend(value)
-            elif param.kind == param.KEYWORD_ONLY:
-                kwargs[name] = value
-            else:
-                assert param.kind == param.VAR_KEYWORD
-                for pair in value:
-                    error = self.subparser.error
-                    key, val = parse_pair(pair, self.converter(param), error)
-                    kwargs[key] = val
-        result = self.function(*argv, **kwargs)
+        all_args = convert(self.function, inputs, self.parsers)
+        if isinstance(all_args, CantConvert):
+            self.subparser.error(all_args.args[0])
+        args, kwargs = all_args
+        result = self.function(*args, **kwargs)
         if self.result:
             print(result)
         return result
