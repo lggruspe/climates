@@ -1,10 +1,16 @@
 """Test convert.py"""
 
+from sys import version_info
 from typing import Callable
 
 import pytest
 
 from .convert import CantConvert, convert
+
+
+def check_version(major: int, minor: int) -> bool:
+    """Check python version."""
+    return (version_info.major, version_info.minor) >= (major, minor)
 
 
 def test_convert_empty() -> None:
@@ -95,6 +101,27 @@ def test_convert_invalid_args() -> None:
     assert "args" in result.args[0]
     assert "5.0" in result.args[0]
     assert "expected typing.Tuple[int, ...]" in result.args[0]
+
+
+@pytest.mark.skipif(not check_version(3, 9), reason="No generic aliases")
+def test_convert_invalid_generic_alias_args() -> None:
+    """convert should print proper error message for invalid generic alias
+    values."""
+    def func(arg: tuple[str, int]) -> None:  # pylint: disable=unused-argument
+        """Does nothing."""
+
+    result = convert(func, {"arg": []})
+    assert isinstance(result, CantConvert)
+    assert "invalid value" in result.args[0]
+    assert "arg" in result.args[0]
+    assert "expected tuple[str, int]" in result.args[0]
+
+    result = convert(func, {"arg": ["a", "b"]})
+    assert isinstance(result, CantConvert)
+    assert "invalid value" in result.args[0]
+    assert "arg" in result.args[0]
+    assert "a b" in result.args[0]
+    assert "expected tuple[str, int]" in result.args[0]
 
 
 def test_convert_invalid_kwargs() -> None:

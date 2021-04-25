@@ -3,6 +3,7 @@
 from functools import wraps
 from inspect import Parameter, signature
 from shlex import join
+import types
 from typing import (
     Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
 )
@@ -43,6 +44,9 @@ def get_type_name(param: Parameter) -> str:
     """
     assert param.annotation != param.empty
     hint = collect_annotation(param)
+    if hasattr(types, "GenericAlias") and \
+            isinstance(hint, getattr(types, "GenericAlias")):
+        return str(hint)
     return str(getattr(hint, "__name__", hint))
 
 
