@@ -67,26 +67,22 @@ def convert(func: Function,
             ) -> Union[FunctionArgs, CantConvert]:
     """Construct args and kwargs for function from argparse inputs.
 
-    Assumes all function parameters are in inputs (raises KeyError).
+    Assumes all function parameters are in inputs (raises KeyError) and in
+    custom_parsers (also raises KeyError).
     If inputs[name] is None, apply default value.
     Raise error if there's no default.
 
-    If a custom parser exists for a parameter, it is used instead of the
-    inferred parser.
+    The custom parsers are defined by climux.Command.
     """
+    if custom_parsers is None:
+        custom_parsers = {}
+
     args = []
     kwargs = {}
     sig = signature(func)
 
     for name, param in sig.parameters.items():
-        parse = get_parser(param)
-        if custom_parsers and name in custom_parsers:
-            parse = wrap_custom_parser(custom_parsers[name])
-
-        if isinstance(parse, CantInfer):
-            assert param.annotation != param.empty
-            return CantConvert(f"unsupported type: {get_type_name(param)}")
-
+        parse = custom_parsers[name]
         input_ = inputs[name]
         if input_ is None:
             if param.default == param.empty:

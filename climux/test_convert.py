@@ -1,10 +1,10 @@
 """Test convert.py"""
 
 from sys import version_info
-from typing import Callable
 
 import pytest
 
+from . import Command
 from .convert import CantConvert, convert
 
 
@@ -33,8 +33,10 @@ def test_convert() -> None:
     def func(a: int, /, b: int, *c: int, d: int, **e: int) -> None:  # pylint: disable=C0103,W0613; # noqa: E501
         """Does nothing."""
 
+    command = Command(func)
+
     with pytest.raises(KeyError) as exc_info:
-        convert(func, {"a": ["1"]})
+        convert(func, {"a": ["1"]}, command.parsers)
     assert "b" in exc_info.value.args
 
     result = convert(func, dict(
@@ -43,7 +45,7 @@ def test_convert() -> None:
         c=["3", "4"],
         d=["5"],
         e=["6", "7", "8", "9"],
-    ))
+    ), command.parsers)
     assert result == (
         (1, 2, 3, 4),
         {"d": 5, "6": 7, "8": 9},
@@ -59,22 +61,13 @@ def test_convert_without_annotation() -> None:
         """Does nothing."""
         return arg
 
-    assert convert(func, dict(arg=["1", "2", "3"])) == (
+    command = Command(func)
+
+    assert convert(func, dict(arg=["1", "2", "3"]), command.parsers) == (
         ("1 2 3",),
         {}
     )
     assert func(True)  # type: ignore
-
-
-def test_convert_unsupported_type() -> None:
-    """convert should raise an error if type hint is unsupported."""
-    def func(arg: Callable[..., int]) -> None:  # pylint: disable=unused-argument; # noqa: E501
-        """Does nothing."""
-
-    result = convert(func, {"arg": ""})
-    assert isinstance(result, CantConvert)
-    assert "unsupported type" in result.args[0]
-    assert "Callable[..., int]" in result.args[0]
 
 
 def test_convert_invalid_value() -> None:
@@ -82,7 +75,9 @@ def test_convert_invalid_value() -> None:
     def func(arg: int) -> None:  # pylint: disable=unused-argument
         """Does nothing."""
 
-    result = convert(func, {"arg": ["5.0"]})
+    command = Command(func)
+
+    result = convert(func, {"arg": ["5.0"]}, command.parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "arg" in result.args[0]
@@ -95,7 +90,9 @@ def test_convert_invalid_args() -> None:
     def func(*args: int) -> None:  # pylint: disable=unused-argument
         """Does nothing."""
 
-    result = convert(func, {"args": ["5.0"]})
+    command = Command(func)
+
+    result = convert(func, {"args": ["5.0"]}, command.parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "args" in result.args[0]
@@ -110,13 +107,15 @@ def test_convert_invalid_generic_alias_args() -> None:
     def func(arg: tuple[str, int]) -> None:  # pylint: disable=unused-argument
         """Does nothing."""
 
-    result = convert(func, {"arg": []})
+    command = Command(func)
+
+    result = convert(func, {"arg": []}, command.parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "arg" in result.args[0]
     assert "expected tuple[str, int]" in result.args[0]
 
-    result = convert(func, {"arg": ["a", "b"]})
+    result = convert(func, {"arg": ["a", "b"]}, command.parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "arg" in result.args[0]
@@ -129,7 +128,9 @@ def test_convert_invalid_kwargs() -> None:
     def func(**kwargs: int) -> None:  # pylint: disable=unused-argument
         """Does nothing."""
 
-    result = convert(func, {"kwargs": ["a", "5.0"]})
+    command = Command(func)
+
+    result = convert(func, {"kwargs": ["a", "5.0"]}, command.parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "kwargs" in result.args[0]
@@ -142,7 +143,9 @@ def test_convert_none_with_default() -> None:
     def func(arg: int = 9001) -> int:
         return arg
 
-    result = convert(func, {"arg": None})
+    command = Command(func)
+
+    result = convert(func, {"arg": None}, command.parsers)
     assert not isinstance(result, CantConvert)
 
     args, kwargs = result
@@ -154,7 +157,9 @@ def test_convert_none_with_missing_default() -> None:
     def func(arg: int) -> None:  # pylint: disable=unused-argument
         """Does nothing."""
 
-    result = convert(func, {"arg": None})
+    command = Command(func)
+
+    result = convert(func, {"arg": None}, command.parsers)
     assert isinstance(result, CantConvert)
     assert "missing" in result.args[0]
     assert "arg" in result.args[0]
@@ -176,9 +181,9 @@ def test_convert_with_failing_custom_parsers() -> None:
     def func(arg: int) -> None:  # pylint: disable=unused-argument
         """Does nothing."""
 
-    result = convert(func, {"arg": ["foo"]}, custom_parsers=dict(
-        arg=int
-    ))
+    command = Command(func, parsers=dict(arg=int))
+
+    result = convert(func, {"arg": ["foo"]}, command.parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "arg" in result.args[0]

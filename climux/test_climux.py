@@ -1,11 +1,12 @@
 """Test climux."""
 from argparse import ArgumentParser
-from typing import Dict, Tuple
+from typing import Callable, Dict, Tuple
 
 from pytest import CaptureFixture
 import pytest
 
 from climux import Cli, Command, arg, run
+from climux.errors import UnsupportedType
 
 
 def test_command_name() -> None:
@@ -30,6 +31,16 @@ def test_command_description() -> None:
     assert isinstance(description, str)
     assert "Foobaz." in description
     foobar()
+
+
+def test_command_unsupported_type() -> None:
+    """Command should raise an error if type hint is unsupported."""
+    def func(arg_: Callable[..., int]) -> None:  # pylint: disable=unused-argument; # noqa: E501
+        """Does nothing."""
+
+    with pytest.raises(UnsupportedType) as exc_info:
+        Command(func)
+    assert "typing.Callable[..., int]" in exc_info.value.args[0]
 
 
 def test_cli_constructor() -> None:

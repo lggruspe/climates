@@ -1,16 +1,19 @@
 """Library for writing command-line interfaces."""
 
 from argparse import ArgumentParser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from inspect import signature, Parameter
 from typing import (
     Any, Callable, Dict, Literal, Mapping, NoReturn, Optional, Sequence, Tuple,
     Union
 )
 
-from infer_parser import infer_length
+from infer_parser import CantInfer, infer_length
 
-from .convert import CantConvert, convert
+from .convert import (
+    CantConvert, convert, get_parser, get_type_name, wrap_custom_parser
+)
+from .errors import UnsupportedType
 from .utils import collect_annotation
 
 
@@ -68,10 +71,24 @@ class Command:
     function: Function
     alias: Optional[str] = None
     result: bool = True
-    parsers: Optional[Dict[str, Function]] = None
-    args: Optional[Dict[str, Arg]] = None
+    parsers: Dict[str, Function] = field(default_factory=dict)
+    args: Dict[str, Arg] = field(default_factory=dict)
 
-    subparser: Optional[ArgumentParser] = None
+    subparser: Optional[ArgumentParser] = field(default=None, init=False)
+
+    def __post_init__(self) -> None:
+        """Infer unset argument parsers.
+
+        Also wraps custom parsers."""
+        sig = signature(self.function)
+        for name, param in sig.parameters.items():
+            if (parser := self.parsers.get(name)) is not None:
+                self.parsers[name] = wrap_custom_parser(parser)
+            else:
+                self.parsers[name] = get_parser(param)
+            if isinstance(self.parsers[name], CantInfer):
+                assert param.annotation != param.empty
+                raise UnsupportedType(get_type_name(param))
 
     @property
     def name(self) -> str:
