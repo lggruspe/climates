@@ -21,7 +21,7 @@ def dist():
 def lint():
     """Run linters."""
     sh("mypy -p climux --strict")
-    sh("pylint climux --fail-under=10 -d E1136")
+    sh("pylint climux --fail-under=10")
     sh("flake8 climux --max-complexity=10")
 
 

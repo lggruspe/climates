@@ -1,34 +1,38 @@
-# type: ignore
 """Test climux."""
 from argparse import ArgumentParser
 from typing import Dict, Tuple
+
+from pytest import CaptureFixture
 import pytest
+
 from climux import Cli, Command, arg, run
 
 
-def test_command_name():
+def test_command_name() -> None:
     """Command name should be taken from function.__name__ or from alias."""
-    def foobar():
+    def foobar() -> None:
         """Foobar."""
 
     assert Command(foobar).name == "foobar"
     assert Command(foobar, alias="foobaz").name == "foobaz"
 
 
-def test_command_description():
+def test_command_description() -> None:
     """Command description should be taken from function docstrings."""
-    def foobar():
+    def foobar() -> None:
         pass
 
-    def foobaz():
+    def foobaz() -> None:
         """Foobaz."""
 
     assert Command(foobar).description is None
-    assert "Foobaz." in Command(foobaz).description
+    description = Command(foobaz).description
+    assert isinstance(description, str)
+    assert "Foobaz." in description
     foobar()
 
 
-def test_cli_constructor():
+def test_cli_constructor() -> None:
     """Cli constructor must set description and empty commands."""
     cli = Cli("test", description="Test CLI app")
     assert cli.prog == "test"
@@ -36,12 +40,12 @@ def test_cli_constructor():
     assert not cli.commands
 
 
-def test_cli_build(cli):
+def test_cli_build(cli: Cli) -> None:
     """Cli.build should create an ArgumentParser object."""
     assert isinstance(cli.build(), ArgumentParser)
 
 
-def test_cli_build_description():
+def test_cli_build_description() -> None:
     """Cli.build should get description from Cli.description."""
     cli = Cli("test", description="Test CLI app")
     parser = cli.build()
@@ -49,15 +53,15 @@ def test_cli_build_description():
     assert cli.description == parser.description
 
 
-def test_cli_run_dispatch(cli):
+def test_cli_run_dispatch(cli: Cli) -> None:
     """Cli.run should dispatch automatically."""
-    def fn_foo():
+    def fn_foo() -> str:
         return "Foo."
 
-    def fn_bar():
+    def fn_bar() -> str:
         return "Bar."
 
-    def fn_baz():
+    def fn_baz() -> str:
         return "Baz."
 
     cli.add(Command(fn_foo, alias="foo"))
@@ -68,7 +72,8 @@ def test_cli_run_dispatch(cli):
     assert cli.run(["baz"]) == "Baz."
 
 
-def test_cli_run_invalid_subcommand(cli, capsys):
+def test_cli_run_invalid_subcommand(cli: Cli,
+                                    capsys: CaptureFixture[str]) -> None:
     """Subcommand should be required and checked."""
     with pytest.raises(SystemExit):
         cli.run([])
@@ -104,9 +109,10 @@ def test_run() -> None:
     assert result == (1, (2, 3,), {"a": 4, "b": 5})
 
 
-def test__parameter_with_default(cli, capsys):
+def test__parameter_with_default(cli: Cli,
+                                 capsys: CaptureFixture[str]) -> None:
     """Parameter should turn into CLI --option."""
-    def func(oof="oof", /, rab="rab", *, zab="zab"):
+    def func(oof="oof", /, rab="rab", *, zab="zab"):  # type: ignore
         return dict(oof=oof, rab=rab, zab=zab)
 
     cli.add(Command(func))
@@ -121,9 +127,10 @@ def test__parameter_with_default(cli, capsys):
     assert "unrecognized arguments: oof" in err
 
 
-def test__parameter_without_default(cli, capsys):
+def test__parameter_without_default(cli: Cli,
+                                    capsys: CaptureFixture[str]) -> None:
     """Parameter should turn into required CLI --option."""
-    def func(oof, /, rab, *, zab):
+    def func(oof, /, rab, *, zab):  # type: ignore
         return dict(oof=oof, rab=rab, zab=zab)
 
     cli.add(Command(func))
@@ -137,9 +144,10 @@ def test__parameter_without_default(cli, capsys):
     assert "the following arguments are required: --oof, --rab, --zab" in err
 
 
-def test__var_positional_parameters(cli, capsys):
+def test__var_positional_parameters(cli: Cli,
+                                    capsys: CaptureFixture[str]) -> None:
     """Corresponding option should be optional list."""
-    def func(*args):
+    def func(*args):  # type: ignore
         return args
 
     cli.add(Command(func))
@@ -152,13 +160,14 @@ def test__var_positional_parameters(cli, capsys):
     assert "unrecognized arguments: foo" in err
 
 
-def test__var_keyword_parameters(cli, capsys):
+def test__var_keyword_parameters(cli: Cli,
+                                 capsys: CaptureFixture[str]) -> None:
     """Corresponding option should be an optional flag that takes in a list.
 
     The list should be an alternating sequence of keys and values separated by
     spaces.
     """
-    def func(**kwargs: int):
+    def func(**kwargs: int) -> Dict[str, int]:
         return kwargs
 
     cli.add(Command(func))
@@ -184,9 +193,11 @@ def test__var_keyword_parameters(cli, capsys):
     assert "expected typing.Dict[str, int]" in err
 
 
-def test__annotated_parameters(cli):
+def test__annotated_parameters(cli: Cli) -> None:
     """Options should be converted using annotation."""
-    def func(arg_: float, *args: int, **kwargs: float):
+    Result = Tuple[float, Tuple[int, ...], Dict[str, float]]
+
+    def func(arg_: float, *args: int, **kwargs: float) -> Result:
         return arg_, args, kwargs
 
     cli.add(Command(func))
@@ -201,9 +212,9 @@ def test__annotated_parameters(cli):
     assert kwargs == {"a": 1.1, "b": 2.2}
 
 
-def test__failed_option_parsing(cli, capsys):
+def test__failed_option_parsing(cli: Cli, capsys: CaptureFixture[str]) -> None:
     """Program should abort if it can't parse an option."""
-    def func(arg_: int):
+    def func(arg_: int) -> int:
         return arg_
 
     cli.add(Command(func))
@@ -216,9 +227,9 @@ def test__failed_option_parsing(cli, capsys):
     assert "expected int" in err
 
 
-def test__command_with_custom_parser(cli):
+def test__command_with_custom_parser(cli: Cli) -> None:
     """Options should be passed to the parser if there is one."""
-    def func(arg_):
+    def func(arg_):  # type: ignore
         return arg_
 
     cli.add(Command(func, parsers={"arg_": lambda s: s[::-1]}))
@@ -227,13 +238,13 @@ def test__command_with_custom_parser(cli):
     assert cli.run(["func", "--arg_", "baz"]) == "zab"
 
 
-def test__command_with_result(cli, capsys):
+def test__command_with_result(cli: Cli, capsys: CaptureFixture[str]) -> None:
     """Print function result if Command.result is True.
 
     Cli.run should still return the result regardless of the value of
     Command.result.
     """
-    def func(arg_):
+    def func(arg_):  # type: ignore
         return arg_
 
     cli.add(Command(func, alias="foo"))
@@ -248,9 +259,10 @@ def test__command_with_result(cli, capsys):
     assert not out
 
 
-def test__command_with_custom_args(cli, capsys):
+def test__command_with_custom_args(cli: Cli,
+                                   capsys: CaptureFixture[str]) -> None:
     """Use custom args when specified."""
-    def func(pos, short):
+    def func(pos, short):  # type: ignore
         return pos, short
 
     cli.add(Command(func, args=dict(
