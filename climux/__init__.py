@@ -141,3 +141,16 @@ class Cli:
         command = self.commands[args[SUBCOMMAND_DEST]]
         del args[SUBCOMMAND_DEST]
         return command.invoke(args)
+
+
+def build(command: Command) -> ArgumentParser:
+    """Build ArgumentParser with single command."""
+    parser = ArgumentParser(prog=command.name, description=command.description)
+    command.set_options(parser)
+    return parser
+
+
+def run(command: Command, args_: Optional[Sequence[str]] = None) -> Any:
+    """Build and run argument parser for single command."""
+    args = vars(build(command).parse_args(args_))
+    return command.invoke(args)

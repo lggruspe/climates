@@ -30,7 +30,7 @@ cli.add(Command(hello))
 cli.run()
 ```
 
-See `example.py` for details.
+See [examples](./examples/).
 
 Features
 --------

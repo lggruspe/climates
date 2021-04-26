@@ -1,8 +1,9 @@
 # type: ignore
 """Test climux."""
 from argparse import ArgumentParser
+from typing import Dict, Tuple
 import pytest
-from climux import Cli, Command, arg
+from climux import Cli, Command, arg, run
 
 
 def test_command_name():
@@ -86,6 +87,21 @@ def test_arg() -> None:
     assert arg(1, 2) == ((1, 2), {})
     assert arg(foo="foo", bar="bar") == ((), {"foo": "foo", "bar": "bar"})
     assert arg(1, foo="foo") == ((1,), {"foo": "foo"})
+
+
+def test_run() -> None:
+    """run should build and run argparse with no subcommands."""
+    Result = Tuple[int, Tuple[int, ...], Dict[str, int]]
+
+    def func(arg_: int, *args: int, **kwargs: int) -> Result:
+        return arg_, args, kwargs
+
+    result = run(Command(func), [
+        "--arg_", "1",
+        "--args", "2", "3",
+        "--kwargs", "a", "4", "b", "5",
+    ])
+    assert result == (1, (2, 3,), {"a": 4, "b": 5})
 
 
 def test__parameter_with_default(cli, capsys):
