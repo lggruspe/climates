@@ -2,67 +2,22 @@
 
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
-from inspect import signature, Parameter
+from inspect import signature
 from typing import (
-    Any, Callable, Dict, Literal, Mapping, NoReturn, Optional, Sequence, Tuple,
-    Union
+    Any, Callable, Dict, Mapping, NoReturn, Optional, Sequence, Union
 )
 
-from infer_parser import CantInfer, infer_length
+from infer_parser import CantInfer
 
+from .arguments import InferredParameter, Arg, Opt
 from .convert import (
     CantConvert, convert, get_parser, get_type_name, wrap_custom_parser
 )
 from .errors import UnsupportedType
-from .utils import collect_annotation
 
 
 Function = Callable[..., Any]
 Error = Callable[..., NoReturn]
-Arg = Tuple[Tuple[Any, ...], Dict[str, Any]]
-
-
-def arg(*args: Any, **kwargs: Any) -> Arg:
-    """Return arguments."""
-    return args, kwargs
-
-
-def infer_nargs(param: Parameter) -> Union[int, Literal["*"]]:
-    """Infer nargs."""
-    if param.annotation == param.empty:
-        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
-            return "*"
-        return 1
-    length = infer_length(collect_annotation(param))
-    return length if isinstance(length, int) else "*"
-
-
-def make_argument(param: Parameter) -> Arg:
-    """Make ArgumentParser argument."""
-    variadic = param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
-    nargs = infer_nargs(param)
-    default: Optional[Sequence[Any]] = [] if variadic else None
-    required = False if variadic else param.default == param.empty
-    return (f"--{param.name}",), dict(
-        default=default,
-        nargs=nargs,
-        required=required,
-        dest=param.name,
-    )
-
-
-def update_argument(old: Arg, new: Arg) -> Arg:
-    """Update argument.
-
-    Also removes parameters that don't make sense for positional arguments.
-    """
-    _, old_kwargs = old
-    new_args, new_kwargs = new
-    old_kwargs.update(new_kwargs)
-    if len(new_args) == 1 and not new_args[0].startswith("-"):
-        old_kwargs.pop("dest", None)
-        old_kwargs.pop("required", None)
-    return (new_args, old_kwargs)
 
 
 @dataclass
@@ -72,7 +27,7 @@ class Command:
     alias: Optional[str] = None
     result: bool = True
     parsers: Dict[str, Function] = field(default_factory=dict)
-    args: Dict[str, Arg] = field(default_factory=dict)
+    args: Dict[str, Union[Arg, Opt]] = field(default_factory=dict)
 
     subparser: Optional[ArgumentParser] = field(default=None, init=False)
 
@@ -108,11 +63,10 @@ class Command:
         sig = signature(self.function)
         for param in sig.parameters.values():
             # NOTE add_argument(help=...) should be taken from docstring params
-            args, kwargs = make_argument(param)
+            inferred = InferredParameter(param)
             if self.args and param.name in self.args:
-                args, kwargs = update_argument((args, kwargs),
-                                               self.args[param.name])
-            parser.add_argument(*args, **kwargs)
+                inferred.update(self.args[param.name])
+            parser.add_argument(*inferred.args, **inferred.kwargs)
 
     def invoke(self, inputs: Mapping[str, Sequence[str]]) -> Any:
         """Invoke command on argparse.Namespace dictionary."""

@@ -5,7 +5,8 @@ from typing import Callable, Dict, Tuple
 from pytest import CaptureFixture
 import pytest
 
-from climux import Cli, Command, arg, run
+from climux import Cli, Command, run
+from climux.arguments import Arg, Opt
 from climux.errors import UnsupportedType
 
 
@@ -95,14 +96,6 @@ def test_cli_run_invalid_subcommand(cli: Cli,
         cli.run(["invalid"])
     _, err = capsys.readouterr()
     assert "invalid choice" in err
-
-
-def test_arg() -> None:
-    """arg should just return inputs (args and kwargs)."""
-    assert arg() == ((), {})
-    assert arg(1, 2) == ((1, 2), {})
-    assert arg(foo="foo", bar="bar") == ((), {"foo": "foo", "bar": "bar"})
-    assert arg(1, foo="foo") == ((1,), {"foo": "foo"})
 
 
 def test_run() -> None:
@@ -277,8 +270,8 @@ def test__command_with_custom_args(cli: Cli,
         return pos, short
 
     cli.add(Command(func, args=dict(
-        pos=arg("pos"),
-        short=arg("-s"),
+        pos=Arg(),
+        short=Opt("-s"),
     )))
 
     assert cli.run(["func", "foo", "-s", "bar"]) == ("foo", "bar")
@@ -287,3 +280,16 @@ def test__command_with_custom_args(cli: Cli,
         cli.run(["func"])
     _, err = capsys.readouterr()
     assert "the following arguments are required: pos, -s" in err
+
+
+def test__command_with_arg_help(capsys: CaptureFixture[str]) -> None:
+    """CLI should use Arg.help if specified."""
+    def func(pos):  # type: ignore
+        return pos
+
+    with pytest.raises(SystemExit):
+        run(Command(func, args=dict(pos=Arg(help="Positional argument"))),
+            ["-h"])
+    out, _ = capsys.readouterr()
+    assert "Positional argument" in out
+    assert func(True)  # type: ignore
