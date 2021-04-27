@@ -6,7 +6,7 @@ from pytest import CaptureFixture
 import pytest
 
 from climux import Cli, Command, run
-from climux.arguments import Arg, Opt
+from climux.arguments import Arg, Opt, Switch, Toggle
 from climux.errors import UnsupportedType
 
 
@@ -293,3 +293,41 @@ def test__command_with_arg_help(capsys: CaptureFixture[str]) -> None:
     out, _ = capsys.readouterr()
     assert "Positional argument" in out
     assert func(True)  # type: ignore
+
+
+def test__command_with_switch() -> None:
+    """Switch flag should be false by default and true if either short or long
+    flag is specified."""
+    def func(arg: bool):  # type: ignore
+        return arg
+
+    func(True)
+    command = Command(func, args=dict(arg=Switch("-a", "--arg")))
+    assert run(command, []) is False
+    assert run(command, ["-a"]) is True
+    assert run(command, ["--arg"]) is True
+
+
+def test__command_with_toggle_with_true_default() -> None:
+    """If function param is True by default, specifying the flag should set the
+    value to False."""
+    def func(arg: bool = True):  # type: ignore
+        return arg
+
+    func(True)
+    command = Command(func, args=dict(arg=Toggle("-a", "--arg")))
+    assert run(command, []) is True
+    assert run(command, ["-a"]) is False
+    assert run(command, ["--arg"]) is False
+
+
+def test__command_with_toggle_without_default() -> None:
+    """If function param has no default, Toggle should behave like Switch."""
+    def func(arg: bool):  # type: ignore
+        return arg
+
+    func(True)
+    command = Command(func, args=dict(arg=Toggle("-a", "--arg")))
+    assert run(command, []) is False
+    assert run(command, ["-a"]) is True
+    assert run(command, ["--arg"]) is True

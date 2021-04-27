@@ -39,11 +39,24 @@ class Opt:  # pylint: disable=too-few-public-methods
                 raise InvalidFlag(flag_)
 
 
+class Switch(Opt):  # pylint: disable=too-few-public-methods
+    """Switch flags (off by default)."""
+
+
+class Toggle(Opt):  # pylint: disable=too-few-public-methods
+    """Toggle flag."""
+
+
 class InferredParameter:  # pylint: disable=too-few-public-methods
     """Inferred CLI arguments and options (from inspect.Parameter).
 
     Contains args and kwargs members, which can be passed to
     ArgumentParser.add_argument(*args, **kwargs).
+
+    Parameters are options by default to avoid ambiguity.
+    Ex: def func(foo: list[int], bar: list[int]).
+    How would the argument parser know how to divide the positional
+    arguments between foo and bar?
     """
     def __init__(self, param: Parameter):
         self.param = param
@@ -69,10 +82,24 @@ class InferredParameter:  # pylint: disable=too-few-public-methods
         if new.help is not None:
             self.kwargs["help"] = new.help
 
-        if isinstance(new, Opt):
-            self.args = new.flags
-        else:
-            assert isinstance(new, Arg)
+        if isinstance(new, Arg):
             self.args = (self.param.name,)
             self.kwargs.pop("dest", None)
             self.kwargs.pop("required", None)
+            return
+
+        assert isinstance(new, Opt)
+        self.args = new.flags
+        if isinstance(new, (Switch, Toggle)):
+            self.kwargs.pop("nargs", None)
+            const = ["0"]
+            default = ["1"]
+            if self.param.default is not True or isinstance(new, Switch):
+                const = ["1"]
+                default = ["0"]
+            self.kwargs.update(dict(
+                action="store_const",
+                const=const,
+                default=default,
+                required=False,
+            ))
