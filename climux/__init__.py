@@ -7,13 +7,13 @@ from typing import (
     Any, Callable, Dict, Mapping, NoReturn, Optional, Sequence, Union
 )
 
-from infer_parser import CantInfer
+from infer_parser import UnsupportedType
 
+from . import errors
 from .arguments import InferredParameter, Arg, Opt
 from .convert import (
     CantConvert, convert, get_parser, get_type_name, wrap_custom_parser
 )
-from .errors import UnsupportedType
 
 
 Function = Callable[..., Any]
@@ -39,11 +39,12 @@ class Command:
         for name, param in sig.parameters.items():
             if (parser := self.parsers.get(name)) is not None:
                 self.parsers[name] = wrap_custom_parser(parser)
-            else:
+                continue
+            try:
                 self.parsers[name] = get_parser(param)
-            if isinstance(self.parsers[name], CantInfer):
+            except UnsupportedType as exc:
                 assert param.annotation != param.empty
-                raise UnsupportedType(get_type_name(param))
+                raise errors.UnsupportedType(get_type_name(param)) from exc
 
     @property
     def name(self) -> str:

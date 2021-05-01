@@ -6,6 +6,7 @@ import sys
 
 def sh(cmd):
     """Run command, exit if returncode is non-zero."""
+    print("$", cmd)
     proc = run(cmd, shell=True)
     if proc.returncode != 0:
         print('> ', cmd, file=sys.stderr)

@@ -1,16 +1,9 @@
 """Test convert.py"""
 
-from sys import version_info
-
 import pytest
 
 from . import Command
-from .convert import CantConvert, convert
-
-
-def check_version(major: int, minor: int) -> bool:
-    """Check python version."""
-    return (version_info.major, version_info.minor) >= (major, minor)
+from .convert import CantConvert, convert, wrap_custom_parser
 
 
 def test_convert_empty() -> None:
@@ -63,8 +56,8 @@ def test_convert_without_annotation() -> None:
 
     command = Command(func)
 
-    assert convert(func, dict(arg=["1", "2", "3"]), command.parsers) == (
-        ("1 2 3",),
+    assert convert(func, dict(arg=["1.0"]), command.parsers) == (
+        ("1.0",),
         {}
     )
     assert func(True)  # type: ignore
@@ -100,7 +93,6 @@ def test_convert_invalid_args() -> None:
     assert "expected typing.Tuple[int, ...]" in result.args[0]
 
 
-@pytest.mark.skipif(not check_version(3, 9), reason="No generic aliases")
 def test_convert_invalid_generic_alias_args() -> None:
     """convert should print proper error message for invalid generic alias
     values."""
@@ -171,7 +163,7 @@ def test_convert_with_custom_parsers() -> None:
         """Does nothing."""
 
     result = convert(func, {"arg": ["foo"]}, custom_parsers=dict(
-        arg=lambda x: x[::-1]
+        arg=wrap_custom_parser(lambda x: x[::-1])
     ))
     assert result == (("oof",), {})
 

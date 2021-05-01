@@ -4,19 +4,22 @@ from dataclasses import dataclass
 from inspect import Parameter
 from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
-from infer_parser import infer_length
+from infer_parser import make_parser
 
-from climux.errors import InvalidFlag
-from climux.utils import collect_annotation
+from .errors import InvalidFlag
+from .utils import collect_annotation
 
 
 def infer_nargs(param: Parameter) -> Union[int, Literal["*"]]:
-    """Infer nargs."""
+    """Infer nargs.
+
+    May raise UnsupportedType (from make_parser).
+    """
     if param.annotation == param.empty:
         if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
             return "*"
         return 1
-    length = infer_length(collect_annotation(param))
+    length = make_parser(collect_annotation(param)).length
     return length if isinstance(length, int) else "*"
 
 
