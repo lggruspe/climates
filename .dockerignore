@@ -4,3 +4,8 @@ __pycache__/
 build/
 dist/
 env/
+
+.git/
+.github/
+.mypy_cache/
+.pytest_cache/

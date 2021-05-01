@@ -19,6 +19,13 @@ def dist():
     sh("twine upload dist/*")
 
 
+def docker(version: str = "3.9"):
+    """Run tests and linters in Docker container."""
+    image = f"python:{version}-alpine"
+    sh(f"docker build -t test-climux --build-arg PYTHON_IMAGE={image} .")
+    sh("docker run test-climux")
+
+
 def lint():
     """Run linters."""
     sh("mypy -p climux --strict")
@@ -34,6 +41,6 @@ def test():
 
 if __name__ == "__main__":
     cli = Cli("scripts.py", description="Dev scripts.")
-    for func in (dist, lint, test):
+    for func in (dist, docker, lint, test):
         cli.add(Command(func, result=None))
     cli.run()
