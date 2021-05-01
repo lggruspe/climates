@@ -45,6 +45,8 @@ class Command:
 
     subparser: t.Optional[argparse.ArgumentParser] = \
         dataclasses.field(default=None, init=False)
+    inferred_options: t.List[InferredParameter] = \
+        dataclasses.field(default_factory=list, init=False)
 
     def __post_init__(self) -> None:
         """Infer unset argument parsers.
@@ -61,6 +63,8 @@ class Command:
                 assert param.annotation != param.empty
                 raise errors.UnsupportedType(get_type_name(param)) from exc
 
+        self.infer_options()
+
     @property
     def name(self) -> str:
         """Get command name as it appears in the command-line."""
@@ -73,16 +77,24 @@ class Command:
         """Get command description from function docstring."""
         return self.function.__doc__
 
-    def set_options(self, parser: argparse.ArgumentParser) -> None:
-        """Set parser options from command function signature."""
-        self.subparser = parser
+    def infer_options(self) -> None:
+        """Infer ArgumentParser options from function signature.
+
+        Result is appended into self.inferred_options."""
         sig = inspect.signature(self.function)
         for param in sig.parameters.values():
-            # NOTE add_argument(help=...) should be taken from docstring params
             inferred = InferredParameter(param)
             if self.args and param.name in self.args:
                 inferred.update(self.args[param.name])
-            parser.add_argument(*inferred.args, **inferred.kwargs)
+            self.inferred_options.append(inferred)
+
+    def set_options(self, parser: argparse.ArgumentParser) -> None:
+        """Set parser options from command function signature."""
+        self.subparser = parser
+        for inferred in self.inferred_options:
+            args = inferred.args
+            kwargs = inferred.kwargs
+            parser.add_argument(*args, **kwargs)
 
     def invoke(self, inputs: t.Mapping[str, t.Sequence[str]]) -> t.Any:
         """Invoke command on argparse.Namespace dictionary."""
