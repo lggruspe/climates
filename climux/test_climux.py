@@ -331,3 +331,21 @@ def test__command_with_toggle_without_default() -> None:
     assert run(command, []) is False
     assert run(command, ["-a"]) is True
     assert run(command, ["--arg"]) is True
+
+
+def test__nested_parameters() -> None:
+    """Arguments should be parsed correctly."""
+    def func(arg: dict[tuple[str, int], tuple[str, float]]):  # type: ignore
+        return arg
+
+    command = Command(func)
+    assert run(command, ["--arg"]) == {}
+    assert run(command, ["--arg", "foo", "1", "bar", "2.0"]) == {
+        ("foo", 1): ("bar", 2.0)
+    }
+
+    options = "--arg foo 1 bar 2.0 a 3 b 4.5".split()
+    assert run(command, options) == {
+        ("foo", 1): ("bar", 2.0),
+        ("a", 3): ("b", 4.5),
+    }
