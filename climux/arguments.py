@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from inspect import Parameter
-from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
+import typing as t
 
 from infer_parser import make_parser
 
@@ -10,7 +10,7 @@ from .errors import InvalidFlag
 from .utils import collect_annotation
 
 
-def infer_nargs(param: Parameter) -> Union[int, Literal["*"]]:
+def _infer_nargs(param: Parameter) -> t.Union[int, t.Literal["*"]]:
     """Infer nargs.
 
     May raise UnsupportedType (from make_parser).
@@ -29,12 +29,12 @@ class Arg:
 
     There's no name member, because it's inferred from inspect.Parameter.
     """
-    help: Optional[str] = None  # pylint: disable=redefined-builtin
+    help: t.Optional[str] = None  # pylint: disable=redefined-builtin
 
 
 class Opt:  # pylint: disable=too-few-public-methods
     """Flag options."""
-    def __init__(self, flag: str, *flags: str, help: Optional[str] = None):  # pylint: disable=redefined-builtin; # noqa: E501
+    def __init__(self, flag: str, *flags: str, help: t.Optional[str] = None):  # pylint: disable=redefined-builtin; # noqa: E501
         self.flags = (flag,) + flags
         self.help = help
         for flag_ in self.flags:
@@ -65,19 +65,19 @@ class InferredParameter:  # pylint: disable=too-few-public-methods
         self.param = param
 
         variadic = param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
-        nargs = infer_nargs(param)
-        default: Optional[Sequence[Any]] = [] if variadic else None
+        nargs = _infer_nargs(param)
+        default: t.Optional[t.Sequence[t.Any]] = [] if variadic else None
         required = False if variadic else param.default == param.empty
 
-        self.args: Tuple[str, ...] = (f"--{param.name}",)
-        self.kwargs: Dict[str, Any] = dict(
+        self.args: t.Tuple[str, ...] = (f"--{param.name}",)
+        self.kwargs: t.Dict[str, t.Any] = dict(
             default=default,
             nargs=nargs,
             required=required,
             dest=param.name,
         )
 
-    def update(self, new: Union[Arg, Opt]) -> None:
+    def update(self, new: t.Union[Arg, Opt]) -> None:
         """Override inferred defaults with Arg or Opt.
 
         Also removes parameters that don't work with positional arguments.

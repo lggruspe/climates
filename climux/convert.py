@@ -8,8 +8,6 @@ from typing import (
     Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
 )
 
-from infer_parser import make_parser
-
 from .utils import collect_annotation
 
 
@@ -20,23 +18,6 @@ CustomParser = Callable[[Sequence[str]], Any]
 
 class CantConvert(Exception):
     """Returned by convert function on failure."""
-
-
-def get_parser(param: Parameter) -> Function:
-    """Wrap infer to work with inspect.Parameters.
-
-    Converts *args into a tuple and **kwargs into a dict.
-    Uses str for unannotated parameters.
-    May raise UnsupportedType (from make_parser).
-    """
-    annotation: Any = str
-    if param.annotation != param.empty:
-        annotation = param.annotation
-    if param.kind == param.VAR_POSITIONAL:
-        annotation = Tuple[annotation, ...]
-    elif param.kind == param.VAR_KEYWORD:
-        annotation = Dict[str, annotation]
-    return make_parser(annotation)
 
 
 def get_type_name(param: Parameter) -> str:

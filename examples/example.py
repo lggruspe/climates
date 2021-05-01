@@ -6,7 +6,7 @@ def hello(name="world"):
     return f"Hello, {name}!"
 
 
-def example(a, b=1, /, c=2, *d: int, e=3, h, **f: int):
+def example(a, b=1, c=2, *d: int, e=3, h, **f: int):
     """Run example."""
     return repr((a, b, c, d, e, f))
 
