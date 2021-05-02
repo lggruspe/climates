@@ -1,19 +1,11 @@
 """Climux error types."""
 
 
-class ClimuxError(Exception):
-    """Climux base exception class."""
-
-
-class UnsupportedType(ClimuxError):
+class UnsupportedType(TypeError):
     """Unsupported type hints."""
 
 
-class InvalidArgument(ClimuxError):
-    """Invalid argument name (shouldn't start with '-')."""
-
-
-class InvalidFlag(ClimuxError):
+class InvalidFlag(ValueError):
     """Invalid option flags (-f, --foo, etc.).
 
     The flag string should start with '-'.
