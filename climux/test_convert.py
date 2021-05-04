@@ -1,9 +1,20 @@
 """Test convert.py"""
 
+import typing as t
+
+from infer_parser import Parser
 import pytest
 
 from . import Command
-from .convert import CantConvert, convert, wrap_custom_parser
+from .args import opt
+from .convert import CantConvert, convert
+from .utils import make_simple_parser
+
+
+def get_parsers(command: Command) -> t.Dict[str, Parser]:
+    """Get command argument parsers."""
+    return {name: arg.parser  # type: ignore
+            for name, arg in command.custom.items()}
 
 
 def test_convert_empty() -> None:
@@ -27,9 +38,10 @@ def test_convert() -> None:
         """Does nothing."""
 
     command = Command(func)
+    parsers = get_parsers(command)
 
     with pytest.raises(KeyError) as exc_info:
-        convert(func, {"a": ["1"]}, command.parsers)
+        convert(func, {"a": ["1"]}, parsers)
     assert "b" in exc_info.value.args
 
     result = convert(func, dict(
@@ -38,7 +50,7 @@ def test_convert() -> None:
         c=["3", "4"],
         d=["5"],
         e=["6", "7", "8", "9"],
-    ), command.parsers)
+    ), parsers)
     assert result == (
         (1, 2, 3, 4),
         {"d": 5, "6": 7, "8": 9},
@@ -55,8 +67,9 @@ def test_convert_without_annotation() -> None:
         return arg
 
     command = Command(func)
+    parsers = get_parsers(command)
 
-    assert convert(func, dict(arg=["1.0"]), command.parsers) == (
+    assert convert(func, dict(arg=["1.0"]), parsers) == (
         ("1.0",),
         {}
     )
@@ -69,8 +82,9 @@ def test_convert_invalid_value() -> None:
         """Does nothing."""
 
     command = Command(func)
+    parsers = get_parsers(command)
 
-    result = convert(func, {"arg": ["5.0"]}, command.parsers)
+    result = convert(func, {"arg": ["5.0"]}, parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "arg" in result.args[0]
@@ -84,8 +98,9 @@ def test_convert_invalid_args() -> None:
         """Does nothing."""
 
     command = Command(func)
+    parsers = get_parsers(command)
 
-    result = convert(func, {"args": ["5.0"]}, command.parsers)
+    result = convert(func, {"args": ["5.0"]}, parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "args" in result.args[0]
@@ -100,14 +115,15 @@ def test_convert_invalid_generic_alias_args() -> None:
         """Does nothing."""
 
     command = Command(func)
+    parsers = get_parsers(command)
 
-    result = convert(func, {"arg": []}, command.parsers)
+    result = convert(func, {"arg": []}, parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "arg" in result.args[0]
     assert "expected tuple[str, int]" in result.args[0]
 
-    result = convert(func, {"arg": ["a", "b"]}, command.parsers)
+    result = convert(func, {"arg": ["a", "b"]}, parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "arg" in result.args[0]
@@ -121,8 +137,9 @@ def test_convert_invalid_kwargs() -> None:
         """Does nothing."""
 
     command = Command(func)
+    parsers = get_parsers(command)
 
-    result = convert(func, {"kwargs": ["a", "5.0"]}, command.parsers)
+    result = convert(func, {"kwargs": ["a", "5.0"]}, parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "kwargs" in result.args[0]
@@ -136,8 +153,9 @@ def test_convert_none_with_default() -> None:
         return arg
 
     command = Command(func)
+    parsers = get_parsers(command)
 
-    result = convert(func, {"arg": None}, command.parsers)
+    result = convert(func, {"arg": None}, parsers)
     assert not isinstance(result, CantConvert)
 
     args, kwargs = result
@@ -150,8 +168,9 @@ def test_convert_none_with_missing_default() -> None:
         """Does nothing."""
 
     command = Command(func)
+    parsers = get_parsers(command)
 
-    result = convert(func, {"arg": None}, command.parsers)
+    result = convert(func, {"arg": None}, parsers)
     assert isinstance(result, CantConvert)
     assert "missing" in result.args[0]
     assert "arg" in result.args[0]
@@ -163,7 +182,7 @@ def test_convert_with_custom_parsers() -> None:
         """Does nothing."""
 
     result = convert(func, {"arg": ["foo"]}, custom_parsers=dict(
-        arg=wrap_custom_parser(lambda x: x[::-1])
+        arg=make_simple_parser(lambda x: x[::-1])
     ))
     assert result == (("oof",), {})
 
@@ -173,11 +192,36 @@ def test_convert_with_failing_custom_parsers() -> None:
     def func(arg: int) -> None:  # pylint: disable=unused-argument
         """Does nothing."""
 
-    command = Command(func, parsers=dict(arg=int))
+    parser = make_simple_parser(int)
+    command = Command(func, custom=dict(arg=opt(parser=parser)))
+    parsers = get_parsers(command)
 
-    result = convert(func, {"arg": ["foo"]}, command.parsers)
+    result = convert(func, {"arg": ["foo"]}, parsers)
     assert isinstance(result, CantConvert)
     assert "invalid value" in result.args[0]
     assert "arg" in result.args[0]
     assert "foo" in result.args[0]
     assert "expected int" in result.args[0]
+
+
+def test_convert_with_failing_custom_parsers_without_type_hints() -> None:
+    """convert should fail gracefully if custom parser fails."""
+    def func(arg):  # type: ignore
+        """Does nothing."""
+        return arg
+
+    def parser(string: str) -> None:
+        """Parser that always fails."""
+        raise NotImplementedError()
+
+    command = Command(func, custom=dict(arg=opt(
+        parser=make_simple_parser(parser))))
+    parsers = get_parsers(command)
+
+    result = convert(func, {"arg": ["foo"]}, parsers)
+    assert isinstance(result, CantConvert)
+    assert "invalid value" in result.args[0]
+    assert "foo" in result.args[0]
+    assert "arg" in result.args[0]
+
+    assert func(True)  # type: ignore

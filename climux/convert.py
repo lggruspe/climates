@@ -1,6 +1,5 @@
 """Convert argparse parsed args to function args."""
 
-from functools import wraps
 from inspect import Parameter, signature
 import shlex
 import types
@@ -8,12 +7,13 @@ from typing import (
     Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
 )
 
+from infer_parser import Parser
+
 from .utils import collect_annotation
 
 
 Function = Callable[..., Any]
 FunctionArgs = Tuple[Tuple[Any, ...], Dict[str, Any]]
-CustomParser = Callable[[Sequence[str]], Any]
 
 
 class CantConvert(Exception):
@@ -33,21 +33,36 @@ def get_type_name(param: Parameter) -> str:
     return str(getattr(hint, "__name__", hint))
 
 
-def wrap_custom_parser(parser: CustomParser) -> CustomParser:
-    """Wrap custom parser so that it returns CantParse on error."""
-    @wraps(parser)
-    def wrapper(tokens: Sequence[str]) -> Any:
-        assert len(tokens) == 1
-        try:
-            return parser(tokens[0])
-        except Exception as exc:  # pylint: disable=broad-except
-            raise ValueError(f"can parse {tokens} using {parser}") from exc
-    return wrapper
+def convert_value(param: Parameter,
+                  parser: Parser,
+                  tokens: Optional[Sequence[str]] = None
+                  ) -> Union[Any, CantConvert]:
+    """Convert tokens to value.
+
+    None tokens means to use the default value.
+    """
+    name = param.name
+    if tokens is None:
+        if param.default == param.empty:
+            return CantConvert(f"missing parameter: {name}")
+        return param.default
+    try:
+        return parser(tokens)
+    except ValueError:
+        message = "argument {}: invalid value: '{}'".format(
+            name,
+            shlex.join(tokens),
+        )
+        if param.annotation != param.empty:
+            type_name = get_type_name(param)
+            message += f" (expected {type_name})"
+            return CantConvert(message)
+        return CantConvert(message)
 
 
 def convert(func: Function,
             inputs: Mapping[str, Optional[Sequence[str]]],
-            custom_parsers: Optional[Dict[str, CustomParser]] = None,
+            custom_parsers: Optional[Mapping[str, Parser]] = None,
             ) -> Union[FunctionArgs, CantConvert]:
     """Construct args and kwargs for function from argparse inputs.
 
@@ -66,26 +81,9 @@ def convert(func: Function,
     sig = signature(func)
 
     for name, param in sig.parameters.items():
-        parse = custom_parsers[name]
-        input_ = inputs[name]
-        if input_ is None:
-            if param.default == param.empty:
-                return CantConvert(f"missing parameter: {name}")
-            value = param.default
-        else:
-            try:
-                value = parse(input_)
-            except ValueError:
-                message = "argument {}: invalid value: '{}'".format(
-                    name,
-                    shlex.join(input_),
-                )
-
-                # unannotated params don't cause parse errors
-                assert param.annotation != param.empty
-                type_name = get_type_name(param)
-                message += f" (expected {type_name})"
-                return CantConvert(message)
+        value = convert_value(param, custom_parsers[name], inputs[name])
+        if isinstance(value, CantConvert):
+            return value
 
         if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD):
             args.append(value)

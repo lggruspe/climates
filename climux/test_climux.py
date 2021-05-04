@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name
 """Test climux."""
 from argparse import ArgumentParser
 from typing import Callable, Dict, Tuple
@@ -6,8 +7,8 @@ from pytest import CaptureFixture
 import pytest
 
 from climux import Cli, Command, run
-from climux.arguments import Arg, Opt, Switch, Toggle
-from climux.errors import UnsupportedType
+from climux.args import arg, opt, switch, toggle
+from climux.utils import make_simple_parser
 
 
 def test_command_name() -> None:
@@ -39,7 +40,7 @@ def test_command_unsupported_type() -> None:
     def func(arg_: Callable[..., int]) -> None:  # pylint: disable=unused-argument; # noqa: E501
         """Does nothing."""
 
-    with pytest.raises(UnsupportedType) as exc_info:
+    with pytest.raises(TypeError) as exc_info:
         Command(func)
     assert "typing.Callable[..., int]" in exc_info.value.args[0]
 
@@ -236,7 +237,8 @@ def test__command_with_custom_parser(cli: Cli) -> None:
     def func(arg_):  # type: ignore
         return arg_
 
-    cli.add(Command(func, parsers={"arg_": lambda s: s[::-1]}))
+    parser = make_simple_parser(lambda s: s[::-1])
+    cli.add(Command(func, custom=dict(arg_=opt(parser=parser))))
     assert cli.run(["func", "--arg_", "foo"]) == "oof"
     assert cli.run(["func", "--arg_", "bar"]) == "rab"
     assert cli.run(["func", "--arg_", "baz"]) == "zab"
@@ -269,9 +271,9 @@ def test__command_with_custom_args(cli: Cli,
     def func(pos, short):  # type: ignore
         return pos, short
 
-    cli.add(Command(func, args=dict(
-        pos=Arg(),
-        short=Opt("-s"),
+    cli.add(Command(func, custom=dict(
+        pos=arg(),
+        short=opt("-s"),
     )))
 
     assert cli.run(["func", "foo", "-s", "bar"]) == ("foo", "bar")
@@ -288,7 +290,7 @@ def test__command_with_arg_help(capsys: CaptureFixture[str]) -> None:
         return pos
 
     with pytest.raises(SystemExit):
-        run(Command(func, args=dict(pos=Arg(help="Positional argument"))),
+        run(Command(func, custom=dict(pos=arg(help="Positional argument"))),
             ["-h"])
     out, _ = capsys.readouterr()
     assert "Positional argument" in out
@@ -302,7 +304,7 @@ def test__command_with_switch() -> None:
         return arg
 
     func(True)
-    command = Command(func, args=dict(arg=Switch("-a", "--arg")))
+    command = Command(func, custom=dict(arg=switch("-a", "--arg")))
     assert run(command, []) is False
     assert run(command, ["-a"]) is True
     assert run(command, ["--arg"]) is True
@@ -315,19 +317,19 @@ def test__command_with_toggle_with_true_default() -> None:
         return arg
 
     func(True)
-    command = Command(func, args=dict(arg=Toggle("-a", "--arg")))
+    command = Command(func, custom=dict(arg=toggle("-a", "--arg")))
     assert run(command, []) is True
     assert run(command, ["-a"]) is False
     assert run(command, ["--arg"]) is False
 
 
 def test__command_with_toggle_without_default() -> None:
-    """If function param has no default, Toggle should behave like Switch."""
+    """If function param has no default, toggle should behave like switch."""
     def func(arg: bool):  # type: ignore
         return arg
 
     func(True)
-    command = Command(func, args=dict(arg=Toggle("-a", "--arg")))
+    command = Command(func, custom=dict(arg=toggle("-a", "--arg")))
     assert run(command, []) is False
     assert run(command, ["-a"]) is True
     assert run(command, ["--arg"]) is True
