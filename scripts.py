@@ -42,5 +42,5 @@ def test():
 if __name__ == "__main__":
     cli = Cli("scripts.py", description="Dev scripts.")
     for func in (dist, docker, lint, test):
-        cli.add(Command(func, result=None))
+        cli.add(Command(func, show_result=False))
     cli.run()

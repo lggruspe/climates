@@ -245,16 +245,16 @@ def test__command_with_custom_parser(cli: Cli) -> None:
 
 
 def test__command_with_result(cli: Cli, capsys: CaptureFixture[str]) -> None:
-    """Print function result if Command.result is True.
+    """Print function result if Command.show_result is True.
 
     Cli.run should still return the result regardless of the value of
-    Command.result.
+    Command.show_result.
     """
     def func(arg_):  # type: ignore
         return arg_
 
     cli.add(Command(func, alias="foo"))
-    cli.add(Command(func, alias="bar", result=False))
+    cli.add(Command(func, alias="bar", show_result=False))
 
     assert cli.run(["foo", "--arg_", "1"]) == "1"
     out, _ = capsys.readouterr()

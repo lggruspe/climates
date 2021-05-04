@@ -17,7 +17,7 @@ class Command:
     """Represent CLI commands."""
     function: Function
     alias: t.Optional[str] = None
-    result: bool = True
+    show_result: bool = True
     custom: t.Dict[str, Argument] = dataclasses.field(default_factory=dict)
 
     subparser: t.Optional[argparse.ArgumentParser] = \
@@ -67,6 +67,6 @@ class Command:
             self.subparser.error(all_args.args[0])
         args, kwargs = all_args
         result = self.function(*args, **kwargs)
-        if self.result:
+        if self.show_result:
             print(result)
         return result
