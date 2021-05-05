@@ -136,3 +136,6 @@ def _check_flags(flags: t.Sequence[str]) -> None:
     for flag in flags:
         if not flag.startswith("-"):
             raise InvalidFlag(flag)
+
+
+__all__ = ["InvalidFlag", "arg", "opt", "switch", "toggle"]

@@ -38,15 +38,13 @@ class Cli:
         return command.invoke(args)
 
 
-def build(command: Command) -> argparse.ArgumentParser:
-    """Build ArgumentParser with single command."""
+def run(command: Command, args_: t.Optional[t.Sequence[str]] = None) -> t.Any:
+    """Build and run argument parser for single command."""
     parser = argparse.ArgumentParser(prog=command.name,
                                      description=command.description)
     command.set_options(parser)
-    return parser
-
-
-def run(command: Command, args_: t.Optional[t.Sequence[str]] = None) -> t.Any:
-    """Build and run argument parser for single command."""
-    args = vars(build(command).parse_args(args_))
+    args = vars(parser.parse_args(args_))
     return command.invoke(args)
+
+
+__all__ = ["Cli", "run"]

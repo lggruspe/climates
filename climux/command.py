@@ -70,3 +70,6 @@ class Command:
         if self.show_result:
             print(result)
         return result
+
+
+__all__ = ["Command"]

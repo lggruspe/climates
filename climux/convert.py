@@ -1,13 +1,11 @@
 """Convert argparse parsed args to function args."""
 
-from inspect import Parameter, signature
+import inspect
 import shlex
 import types
 import typing as t
 
 from infer_parser import Parser
-
-from .utils import collect_annotation
 
 
 Function = t.Callable[..., t.Any]
@@ -18,7 +16,22 @@ class CantConvert(Exception):
     """Returned by convert function on failure."""
 
 
-def get_type_name(param: Parameter) -> str:
+def collect_annotation(param: inspect.Parameter) -> t.Any:
+    """Return param.annotation.
+
+    Converts *args into tuple and **kwargs into dict.
+    Assumes param is annotated.
+    """
+    assert param.annotation != param.empty
+    hint: t.Any = param.annotation
+    if param.kind == param.VAR_POSITIONAL:
+        hint = t.Tuple[hint, ...]
+    elif param.kind == param.VAR_KEYWORD:
+        hint = t.Dict[str, hint]
+    return hint
+
+
+def get_type_name(param: inspect.Parameter) -> str:
     """Get type name.
 
     Also fixes type names of *args and **kwargs.
@@ -31,7 +44,7 @@ def get_type_name(param: Parameter) -> str:
     return str(getattr(hint, "__name__", hint))
 
 
-def convert_value(param: Parameter,
+def convert_value(param: inspect.Parameter,
                   parser: Parser,
                   tokens: t.Optional[t.Sequence[str]] = None
                   ) -> t.Union[t.Any, CantConvert]:
@@ -76,7 +89,7 @@ def convert(func: Function,
 
     args = []
     kwargs = {}
-    sig = signature(func)
+    sig = inspect.signature(func)
 
     for name, param in sig.parameters.items():
         value = convert_value(param, custom_parsers[name], inputs[name])
@@ -93,3 +106,6 @@ def convert(func: Function,
             assert param.kind == param.VAR_KEYWORD
             kwargs.update(value)
     return (tuple(args), kwargs)
+
+
+__all__ = ()
