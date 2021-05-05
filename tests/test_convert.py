@@ -1,5 +1,7 @@
+# pylint: disable=unsubscriptable-object
 """Test convert.py"""
 
+import sys
 import typing as t
 
 from infer_parser import Parser
@@ -34,7 +36,7 @@ def test_convert() -> None:
 
     Missing arguments should cause a KeyError.
     """
-    def func(a: int, /, b: int, *c: int, d: int, **e: int) -> None:  # pylint: disable=C0103,W0613; # noqa: E501
+    def func(a: int, b: int, *c: int, d: int, **e: int) -> None:  # pylint: disable=C0103,W0613; # noqa: E501
         """Does nothing."""
 
     command = Command(func)
@@ -108,11 +110,13 @@ def test_convert_invalid_args() -> None:
     assert "expected typing.Tuple[int, ...]" in result.args[0]
 
 
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="No generic aliases")
 def test_convert_invalid_generic_alias_args() -> None:
     """convert should print proper error message for invalid generic alias
     values."""
-    def func(arg: tuple[str, int]) -> None:  # pylint: disable=unused-argument
+    def func(arg: tuple[str, int]):  # type: ignore
         """Does nothing."""
+        return arg
 
     command = Command(func)
     parsers = get_parsers(command)
@@ -129,6 +133,8 @@ def test_convert_invalid_generic_alias_args() -> None:
     assert "arg" in result.args[0]
     assert "a b" in result.args[0]
     assert "expected tuple[str, int]" in result.args[0]
+
+    assert func(("", 0))
 
 
 def test_convert_invalid_kwargs() -> None:

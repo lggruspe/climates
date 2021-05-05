@@ -41,8 +41,8 @@ class ArgumentTag(enum.Enum):
 class Argument:
     """ArgumentParser argument."""
     tag: ArgumentTag
-    args: tuple[str, ...] = dataclasses.field(default_factory=tuple)
-    kwargs: dict[str, t.Any] = dataclasses.field(default_factory=dict)
+    args: t.Tuple[str, ...] = dataclasses.field(default_factory=tuple)
+    kwargs: t.Dict[str, t.Any] = dataclasses.field(default_factory=dict)
     parser: t.Optional[Parser] = None
 
     def fill_in(self, param: inspect.Parameter) -> None:

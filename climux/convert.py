@@ -62,7 +62,7 @@ def convert_value(param: inspect.Parameter,
     except ValueError:
         message = "argument {}: invalid value: '{}'".format(
             name,
-            shlex.join(tokens),
+            " ".join(shlex.quote(token) for token in tokens),
         )
         if param.annotation != param.empty:
             type_name = get_type_name(param)

@@ -117,7 +117,7 @@ def test_run() -> None:
 def test__parameter_with_default(cli: Cli,
                                  capsys: CaptureFixture[str]) -> None:
     """Parameter should turn into CLI --option."""
-    def func(oof="oof", /, rab="rab", *, zab="zab"):  # type: ignore
+    def func(oof="oof", rab="rab", *, zab="zab"):  # type: ignore
         return dict(oof=oof, rab=rab, zab=zab)
 
     cli.add(Command(func))
@@ -135,7 +135,7 @@ def test__parameter_with_default(cli: Cli,
 def test__parameter_without_default(cli: Cli,
                                     capsys: CaptureFixture[str]) -> None:
     """Parameter should turn into required CLI --option."""
-    def func(oof, /, rab, *, zab):  # type: ignore
+    def func(oof, rab, *, zab):  # type: ignore
         return dict(oof=oof, rab=rab, zab=zab)
 
     cli.add(Command(func))
@@ -347,7 +347,9 @@ def test__command_with_toggle_without_default() -> None:
 
 def test__nested_parameters() -> None:
     """Arguments should be parsed correctly."""
-    def func(arg: dict[tuple[str, int], tuple[str, float]]):  # type: ignore
+    hint = t.Dict[t.Tuple[str, int], t.Tuple[str, float]]
+
+    def func(arg: hint) -> hint:
         return arg
 
     command = Command(func)
