@@ -1,5 +1,5 @@
 from pathlib import Path
-from climux import Command, Arg, run
+from climux import Command, arg, run
 
 
 def cat(*paths: Path) -> str:
@@ -7,4 +7,4 @@ def cat(*paths: Path) -> str:
     return "".join(path.read_text() for path in paths)
 
 
-run(Command(cat, args=dict(paths=Arg())))
+run(Command(cat, custom=dict(paths=arg())))
