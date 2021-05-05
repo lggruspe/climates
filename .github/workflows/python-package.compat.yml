@@ -36,7 +36,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Lint with pylint
       run: |
-        pylint climux --fail-under=10
+        pylint climux tests --fail-under=10
     - name: Test with pytest
       run: |
-        pytest --cov=climux --cov-report=term-missing --cov-fail-under=90 --cov-branch
+        pytest --cov=climux --cov=tests --cov-report=term-missing --cov-fail-under=90 --cov-branch

@@ -2,7 +2,7 @@
 
 import pytest
 
-from .args import opt, InvalidFlag
+from climux.args import opt, InvalidFlag
 
 
 def test_opt_invalid_flag() -> None:

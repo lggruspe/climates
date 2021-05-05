@@ -3,17 +3,15 @@
 from inspect import Parameter, signature
 import shlex
 import types
-from typing import (
-    Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
-)
+import typing as t
 
 from infer_parser import Parser
 
 from .utils import collect_annotation
 
 
-Function = Callable[..., Any]
-FunctionArgs = Tuple[Tuple[Any, ...], Dict[str, Any]]
+Function = t.Callable[..., t.Any]
+FunctionArgs = t.Tuple[t.Tuple[t.Any, ...], t.Dict[str, t.Any]]
 
 
 class CantConvert(Exception):
@@ -35,8 +33,8 @@ def get_type_name(param: Parameter) -> str:
 
 def convert_value(param: Parameter,
                   parser: Parser,
-                  tokens: Optional[Sequence[str]] = None
-                  ) -> Union[Any, CantConvert]:
+                  tokens: t.Optional[t.Sequence[str]] = None
+                  ) -> t.Union[t.Any, CantConvert]:
     """Convert tokens to value.
 
     None tokens means to use the default value.
@@ -61,9 +59,9 @@ def convert_value(param: Parameter,
 
 
 def convert(func: Function,
-            inputs: Mapping[str, Optional[Sequence[str]]],
-            custom_parsers: Optional[Mapping[str, Parser]] = None,
-            ) -> Union[FunctionArgs, CantConvert]:
+            inputs: t.Mapping[str, t.Optional[t.Sequence[str]]],
+            custom_parsers: t.Optional[t.Mapping[str, Parser]] = None,
+            ) -> t.Union[FunctionArgs, CantConvert]:
     """Construct args and kwargs for function from argparse inputs.
 
     Assumes all function parameters are in inputs (raises KeyError) and in

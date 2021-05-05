@@ -2,7 +2,7 @@
 
 import pytest
 
-from .utils import make_simple_parser
+from climux.utils import make_simple_parser
 
 
 def test_make_simple_parser() -> None:

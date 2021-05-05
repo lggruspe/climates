@@ -28,15 +28,15 @@ def docker(version: str = "3.9"):
 
 def lint():
     """Run linters."""
-    sh("mypy -p climux --strict")
-    sh("pylint climux --fail-under=10")
-    sh("flake8 climux --max-complexity=10")
+    sh("mypy -p climux -p tests --strict")
+    sh("pylint climux tests --fail-under=10")
+    sh("flake8 climux tests --max-complexity=10")
 
 
 def test():
     """Run tests."""
-    sh("pytest --cov=climux --cov-report=term-missing --cov-fail-under=90 "
-       "--cov-branch -x")
+    sh("pytest --cov=climux --cov=tests "
+       "--cov-report=term-missing --cov-fail-under=90 --cov-branch -x")
 
 
 if __name__ == "__main__":

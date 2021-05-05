@@ -5,10 +5,10 @@ import typing as t
 from infer_parser import Parser
 import pytest
 
-from . import Command
-from .args import opt
-from .convert import CantConvert, convert
-from .utils import make_simple_parser
+from climux import Command
+from climux.args import opt
+from climux.convert import CantConvert, convert
+from climux.utils import make_simple_parser
 
 
 def get_parsers(command: Command) -> t.Dict[str, Parser]:

@@ -1,7 +1,7 @@
 # pylint: disable=redefined-outer-name
 """Test climux."""
 from argparse import ArgumentParser
-from typing import Callable, Dict, Tuple
+import typing as t
 
 from pytest import CaptureFixture
 import pytest
@@ -37,7 +37,7 @@ def test_command_description() -> None:
 
 def test_command_unsupported_type() -> None:
     """Command should raise an error if type hint is unsupported."""
-    def func(arg_: Callable[..., int]) -> None:  # pylint: disable=unused-argument; # noqa: E501
+    def func(arg_: t.Callable[..., int]) -> None:  # pylint: disable=unused-argument; # noqa: E501
         """Does nothing."""
 
     with pytest.raises(TypeError) as exc_info:
@@ -101,7 +101,7 @@ def test_cli_run_invalid_subcommand(cli: Cli,
 
 def test_run() -> None:
     """run should build and run argparse with no subcommands."""
-    Result = Tuple[int, Tuple[int, ...], Dict[str, int]]
+    Result = t.Tuple[int, t.Tuple[int, ...], t.Dict[str, int]]
 
     def func(arg_: int, *args: int, **kwargs: int) -> Result:
         return arg_, args, kwargs
@@ -172,7 +172,7 @@ def test__var_keyword_parameters(cli: Cli,
     The list should be an alternating sequence of keys and values separated by
     spaces.
     """
-    def func(**kwargs: int) -> Dict[str, int]:
+    def func(**kwargs: int) -> t.Dict[str, int]:
         return kwargs
 
     cli.add(Command(func))
@@ -200,7 +200,7 @@ def test__var_keyword_parameters(cli: Cli,
 
 def test__annotated_parameters(cli: Cli) -> None:
     """Options should be converted using annotation."""
-    Result = Tuple[float, Tuple[int, ...], Dict[str, float]]
+    Result = t.Tuple[float, t.Tuple[int, ...], t.Dict[str, float]]
 
     def func(arg_: float, *args: int, **kwargs: float) -> Result:
         return arg_, args, kwargs
