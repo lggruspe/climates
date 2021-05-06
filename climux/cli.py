@@ -26,6 +26,7 @@ class Cli:
         subparsers = parser.add_subparsers(dest=SUBCOMMAND_DEST, required=True)
         for name, command in self.commands.items():
             subparser = subparsers.add_parser(name,
+                                              help=command.description,
                                               description=command.description)
             command.set_options(subparser)
         return parser

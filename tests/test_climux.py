@@ -351,3 +351,19 @@ def test__nested_parameters() -> None:
         ("foo", 1): ("bar", 2.0),
         ("a", 3): ("b", 4.5),
     }
+
+
+def test__subcommand_description(cli: Cli,
+                                 capsys: CaptureFixture[str]) -> None:
+    """Command.description should be displayed."""
+    def test() -> None:
+        """This should appear in the help string."""
+
+    cli.add(Command(test))
+    with pytest.raises(SystemExit):
+        cli.run(["-h"])
+
+    out, _ = capsys.readouterr()
+    assert test.__name__ in out
+    assert test.__doc__
+    assert test.__doc__ in out
