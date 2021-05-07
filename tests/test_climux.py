@@ -198,6 +198,16 @@ def test__var_keyword_parameters(cli: Cli,
     assert "expected typing.Dict[str, int]" in err
 
 
+def test__positional_optional_arg_parameter(cli: Cli) -> None:
+    """Optional positional argument should be allowed."""
+    def func(oof: t.Optional[int] = None) -> int:
+        return 0 if oof is None else oof
+
+    cli.add(Command(func, custom=dict(oof=arg())))
+    assert cli.run(["func"]) == 0
+    assert cli.run(["func", "1"]) == 1
+
+
 def test__annotated_parameters(cli: Cli) -> None:
     """Options should be converted using annotation."""
     Result = t.Tuple[float, t.Tuple[int, ...], t.Dict[str, float]]
